@@ -1,0 +1,33 @@
+services:
+  influxdb:
+    image: influxdb:2.7
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: sanchar
+      DOCKER_INFLUXDB_INIT_PASSWORD: sanchar-password
+      DOCKER_INFLUXDB_INIT_ORG: sanchar
+      DOCKER_INFLUXDB_INIT_BUCKET: vehicle_telemetry
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: dev-token
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+
+  server:
+    build: .
+    command: npm run server
+    ports:
+      - "8080:8080"
+      - "8090:8090"
+    environment:
+      WS_PORT: 8080
+      API_PORT: 8090
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_TOKEN: dev-token
+      INFLUX_ORG: sanchar
+      INFLUX_BUCKET: vehicle_telemetry
+    depends_on:
+      - influxdb
+
+volumes:
+  influxdb-data:

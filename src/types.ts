@@ -1,4 +1,12 @@
 export type VehicleState = "charging" | "driving" | "parked";
+export type DriveMode = "city" | "highway" | "charging" | "parked";
+export type AlertSeverity = "info" | "warning" | "critical";
+
+export type TelemetryAlert = {
+  code: string;
+  severity: AlertSeverity;
+  message: string;
+};
 
 export type VehicleTelemetry = {
   vehicleId: string;
@@ -11,6 +19,10 @@ export type VehicleTelemetry = {
   rangeKm: number;
   odometerKm: number;
   powerKw: number;
+  efficiencyKwhPer100Km: number;
+  healthScore: number;
+  driveMode: DriveMode;
+  alerts: TelemetryAlert[];
   stateOfCharge: VehicleState;
   location: {
     lat: number;
@@ -22,6 +34,10 @@ export type TelemetryMessage =
   | {
       type: "hello";
       message: string;
+    }
+  | {
+      type: "heartbeat";
+      timestamp: string;
     }
   | {
       type: "telemetry";

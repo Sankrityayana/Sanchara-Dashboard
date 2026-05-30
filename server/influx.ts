@@ -43,8 +43,11 @@ export class InfluxTelemetryWriter {
         .floatField("rangeKm", vehicle.rangeKm)
         .floatField("odometerKm", vehicle.odometerKm)
         .floatField("powerKw", vehicle.powerKw)
+        .floatField("efficiencyKwhPer100Km", vehicle.efficiencyKwhPer100Km)
+        .intField("healthScore", vehicle.healthScore)
         .floatField("lat", vehicle.location.lat)
         .floatField("lon", vehicle.location.lon)
+        .tag("driveMode", vehicle.driveMode)
         .timestamp(new Date(vehicle.timestamp));
 
       this.writeApi.writePoint(point);
