@@ -225,11 +225,7 @@ function App() {
     const vehicleId = selectedVehicle.vehicleId;
     setScenarioOverrides((current) => {
       const next = { ...current };
-      if (scenario === "normal") {
-        delete next[vehicleId];
-      } else {
-        next[vehicleId] = scenario;
-      }
+      next[vehicleId] = scenario;
       scenarioOverridesRef.current = next;
       return next;
     });
