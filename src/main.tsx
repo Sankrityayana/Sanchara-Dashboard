@@ -240,12 +240,21 @@ function App() {
       <FleetSummaryStrip vehicles={vehicleList} />
 
       <section className="dashboard-grid">
-        <VehicleList
-          vehicles={vehicleList}
-          selectedVehicleId={selectedVehicle?.vehicleId}
-          lastUpdated={lastUpdated}
-          onSelect={setSelectedVehicleId}
-        />
+        <div className="sidebar-stack">
+          <VehicleList
+            vehicles={vehicleList}
+            selectedVehicleId={selectedVehicle?.vehicleId}
+            lastUpdated={lastUpdated}
+            onSelect={setSelectedVehicleId}
+          />
+          {selectedVehicle ? (
+            <ScenarioControls
+              selectedVehicle={selectedVehicle}
+              status={scenarioStatus}
+              onApply={handleScenario}
+            />
+          ) : null}
+        </div>
 
         <section className="primary-panel" aria-label="Selected vehicle telemetry">
           {selectedVehicle ? (
@@ -332,11 +341,6 @@ function App() {
                   compare={compareVehicle}
                   compareVehicleId={compareVehicle?.vehicleId}
                   onCompareVehicleChange={setCompareVehicleId}
-                />
-                <ScenarioControls
-                  selectedVehicle={selectedVehicle}
-                  status={scenarioStatus}
-                  onApply={handleScenario}
                 />
               </section>
 

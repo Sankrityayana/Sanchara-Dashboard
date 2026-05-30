@@ -151,6 +151,11 @@ h3 {
   align-items: start;
 }
 
+.sidebar-stack {
+  display: grid;
+  gap: 16px;
+}
+
 .vehicle-list,
 .primary-panel {
   padding: 18px;
@@ -241,7 +246,7 @@ h3 {
 }
 
 .insight-grid {
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr) minmax(0, 0.8fr);
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
   margin-bottom: 16px;
 }
 
