@@ -1,17 +1,26 @@
 # Sanchar Dashboard
 
-Real-time vehicle telemetry dashboard that streams mock vehicle data over WebSockets and visualizes speed, battery, temperature, range, and health signals live.
+Real-time EV telemetry dashboard that streams coherent mock vehicle data over WebSockets and visualizes live fleet state, health, alerts, scenarios, and local tracking.
 
-## MVP
+Sanchar Dashboard is designed as a portfolio project for vehicle software, energy software, real-time systems, and telemetry-heavy engineering roles.
 
-- React dashboard with live telemetry cards and trend lines
-- Node.js WebSocket server emitting mock EV telemetry every second
-- Optional InfluxDB writer for time-series storage
-- Connection state, heartbeat, reconnect backoff, and stale-data handling
-- Vehicle health score, alert feed, efficiency trend, comparison view, and mock fleet map
-- REST endpoints for latest and historical telemetry
-- Scenario controls for demoing low-battery, overheating, charging, and offline states
-- Optional API bearer token for basic fleet access control
+## Features
+
+- React + TypeScript dashboard with live telemetry cards and charts
+- Node.js WebSocket telemetry service
+- Three coherent mock EVs with related speed, battery, range, power, temperature, and location values
+- Scenario controls: `normal`, `low-battery`, `overheat`, `charging`, `offline`
+- Local vehicle tracking with online/offline state, last-seen age, and sample counts
+- Health score and alert generation
+- Vehicle comparison panel
+- Mock fleet map with route trail
+- Optional InfluxDB persistence and history queries
+- REST API for health, metrics, fleet state, history, alerts, and scenarios
+- Docker Compose, GitHub Actions CI, tests, and deployment config
+
+## Tech Stack
+
+React, TypeScript, Vite, Node.js, WebSockets, InfluxDB, Docker, GitHub Actions.
 
 ## Run Locally
 
@@ -20,49 +29,61 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. The WebSocket server runs on `ws://localhost:8080`.
-The REST API runs on `http://localhost:8090`.
+Open:
+
+```text
+http://localhost:5173
+```
+
+Local services:
+
+```text
+Frontend: http://localhost:5173
+WebSocket: ws://localhost:8080
+REST API: http://localhost:8090
+```
+
+## Scenario Demo
+
+1. Select a vehicle from the left sidebar.
+2. Use **Scenario controls** below the vehicle list.
+3. Click:
+   - **Low battery**: battery/range drop, health degrades, alert appears
+   - **Overheat**: temperatures rise, thermal alerts appear
+   - **Charging**: speed becomes `0`, power turns negative, state becomes charging
+   - **Offline**: vehicle is marked offline in local tracking
+   - **Normal**: vehicle returns to a healthy baseline
 
 ## API
 
-```bash
+```text
 GET /health
+GET /metrics
 GET /api/vehicles
 GET /api/vehicles/:vehicleId/latest
 GET /api/vehicles/:vehicleId/history?limit=120
 GET /api/vehicles/:vehicleId/history?range=5m
 GET /api/fleet/summary
-GET /metrics
+GET /api/simulator
+POST /api/simulator/scenario
 POST /api/alerts/:alertId/acknowledge
 POST /api/alerts/:alertId/resolve
-POST /api/simulator/scenario
 ```
 
-Scenario body:
-
-```json
-{
-  "vehicleId": "SAN-001",
-  "scenario": "low-battery"
-}
-```
-
-Supported scenarios: `normal`, `low-battery`, `overheat`, `charging`, `offline`.
-
-Set `API_TOKEN` to require `Authorization: Bearer <token>` for API calls.
+More details: [docs/API.md](docs/API.md)
 
 ## Optional InfluxDB
 
-Copy `.env.example` to `.env` and set:
+Copy `.env.example` to `.env` and configure:
 
-```bash
+```text
 INFLUX_URL=http://localhost:8086
 INFLUX_TOKEN=...
 INFLUX_ORG=sanchar
 INFLUX_BUCKET=vehicle_telemetry
 ```
 
-The server skips InfluxDB writes when these variables are not configured.
+The app runs without InfluxDB. Without it, live telemetry still streams and the browser keeps local history.
 
 ## Docker
 
@@ -70,7 +91,11 @@ The server skips InfluxDB writes when these variables are not configured.
 docker compose up --build
 ```
 
-This starts the WebSocket/API server and InfluxDB. Run the React dev server separately with `npm run client`.
+This starts the backend and InfluxDB. Run the React dev server separately with:
+
+```bash
+npm run client
+```
 
 ## Validation
 
@@ -82,16 +107,40 @@ npm run build
 
 The WebSocket/API integration test runs in CI and is skipped on the local Windows sandbox because process spawning is restricted there.
 
-## Deployment
+## Documentation
 
-- Frontend: use `vercel.json` with `VITE_WS_URL` and `VITE_API_URL` pointed at the backend.
-- Backend: use `render.yaml` as a starting point for Render. Make sure the host supports WebSockets.
-- Database: use hosted InfluxDB or the provided Docker Compose setup.
+- [Architecture](docs/ARCHITECTURE.md)
+- [API Reference](docs/API.md)
+- [Demo Guide](docs/DEMO.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
+- [Portfolio Notes](docs/PORTFOLIO.md)
+- [Betterment Ideas](docs/BETTERMENT_IDEAS.md)
 
-## Hardening Roadmap
+## Deployment Summary
 
-1. Query historical chart ranges directly from InfluxDB instead of in-memory history.
-2. Add authenticated users and saved fleet views.
-3. Add geofence rules and route playback.
-4. Add structured logs and runtime metrics.
-5. Deploy the client and server behind a production WebSocket-compatible host.
+Recommended split:
+
+- Frontend: Vercel
+- Backend: Render, Railway, Fly.io, or another WebSocket-capable Node host
+- Database: InfluxDB Cloud or self-hosted InfluxDB
+
+Frontend environment variables:
+
+```text
+VITE_WS_URL=wss://<your-backend-host>
+VITE_API_URL=https://<your-backend-host>
+```
+
+Backend environment variables:
+
+```text
+WS_PORT=8080
+API_PORT=10000
+INFLUX_URL=<optional>
+INFLUX_TOKEN=<optional>
+INFLUX_ORG=<optional>
+INFLUX_BUCKET=<optional>
+API_TOKEN=<optional>
+```
+
+Full deployment guide: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
