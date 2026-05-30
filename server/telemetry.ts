@@ -199,7 +199,7 @@ export function calculateHealthScore({
   motorTempC: number;
   efficiencyKwhPer100Km: number;
 }) {
-  const batteryPenalty = batteryPct < 20 ? (20 - batteryPct) * 1.6 : 0;
+  const batteryPenalty = batteryPct < 20 ? (20 - batteryPct) * 3.2 : 0;
   const batteryTempPenalty = Math.max(0, batteryTempC - 42) * 2.2;
   const motorTempPenalty = Math.max(0, motorTempC - 78) * 1.8;
   const efficiencyPenalty = Math.max(0, efficiencyKwhPer100Km - 24) * 1.1;
@@ -241,7 +241,7 @@ function buildAlerts(
 }): TelemetryAlert[] {
   const alerts: TelemetryAlert[] = [];
 
-  if (batteryPct < 18 && stateOfCharge !== "charging") {
+  if (batteryPct <= 18 && stateOfCharge !== "charging") {
     alerts.push(createAlert(vehicleId, "LOW_BATTERY", "critical", "Battery below 18%"));
   } else if (batteryPct < 28 && stateOfCharge !== "charging") {
     alerts.push(createAlert(vehicleId, "BATTERY_WATCH", "warning", "Battery below 28%"));

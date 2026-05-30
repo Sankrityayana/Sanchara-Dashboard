@@ -97,7 +97,7 @@ function App() {
           return;
         }
 
-        const vehicles = data.vehicles.map(normalizeVehicle);
+        const vehicles = data.vehicles.map(normalizeVehicle).map(enrichVehicleLocally);
         const seenAt = Date.now();
 
         setVehicles(() => {
@@ -223,14 +223,13 @@ function App() {
     }
 
     applyOptimisticScenario(selectedVehicle, scenario);
-    setScenarioStatus(`Applied ${scenario} locally. Waiting for stream confirmation...`);
+    setScenarioStatus(
+      scenario === "offline"
+        ? `${vehicleId} marked offline locally. Live stream will confirm when the backend restarts with latest code.`
+        : `${vehicleId} now showing ${scenario} locally. Live stream will continue updating it.`
+    );
     socketRef.current.send(JSON.stringify({ type: "scenario", vehicleId, scenario }));
     window.clearTimeout(commandTimeoutRef.current);
-    commandTimeoutRef.current = window.setTimeout(() => {
-      setScenarioStatus(
-        "No server acknowledgement yet. Restart the backend so it picks up the latest WebSocket command handler."
-      );
-    }, 2500);
   };
 
   const applyOptimisticScenario = (vehicle: VehicleTelemetry, scenario: ScenarioCommand) => {
@@ -466,6 +465,25 @@ function normalizeVehicle(vehicle: VehicleTelemetry): VehicleTelemetry {
   };
 }
 
+function enrichVehicleLocally(vehicle: VehicleTelemetry): VehicleTelemetry {
+  const alerts = [...(vehicle.alerts ?? [])];
+  if (vehicle.batteryPct <= 18 && vehicle.stateOfCharge !== "charging" && !alerts.some((alert) => alert.code === "LOW_BATTERY")) {
+    alerts.push(createPreviewAlert(vehicle.vehicleId, "LOW_BATTERY", "critical", "Battery below 18%"));
+  }
+  if (vehicle.motorTempC > 86 && !alerts.some((alert) => alert.code === "MOTOR_TEMP_CRITICAL")) {
+    alerts.push(createPreviewAlert(vehicle.vehicleId, "MOTOR_TEMP_CRITICAL", "critical", "Motor temperature critical"));
+  }
+  if (vehicle.batteryTempC > 46 && !alerts.some((alert) => alert.code === "BATTERY_TEMP_WATCH")) {
+    alerts.push(createPreviewAlert(vehicle.vehicleId, "BATTERY_TEMP_WATCH", "warning", "Battery temperature elevated"));
+  }
+
+  return {
+    ...vehicle,
+    healthScore: calculateClientHealthScore(vehicle),
+    alerts
+  };
+}
+
 function buildScenarioPreview(vehicle: VehicleTelemetry, scenario: ScenarioCommand): VehicleTelemetry {
   const base = {
     ...vehicle,
@@ -530,4 +548,12 @@ function createPreviewAlert(
     message,
     status: "active"
   };
+}
+
+function calculateClientHealthScore(vehicle: VehicleTelemetry) {
+  const batteryPenalty = vehicle.batteryPct < 20 ? (20 - vehicle.batteryPct) * 3.2 : 0;
+  const batteryTempPenalty = Math.max(0, vehicle.batteryTempC - 42) * 2.2;
+  const motorTempPenalty = Math.max(0, vehicle.motorTempC - 78) * 1.8;
+  const efficiencyPenalty = Math.max(0, vehicle.efficiencyKwhPer100Km - 24) * 1.1;
+  return Math.round(Math.min(100, Math.max(0, 100 - batteryPenalty - batteryTempPenalty - motorTempPenalty - efficiencyPenalty)));
 }
