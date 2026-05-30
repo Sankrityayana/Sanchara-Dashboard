@@ -56,4 +56,14 @@ export type TelemetryMessage =
   | {
       type: "telemetry";
       vehicles: VehicleTelemetry[];
+    }
+  | {
+      type: "command-result";
+      command?: "scenario" | "alert";
+      ok: boolean;
+      message?: string;
+      vehicleId?: string;
+      scenario?: ScenarioCommand;
+      alertId?: string;
+      status?: AlertStatus;
     };

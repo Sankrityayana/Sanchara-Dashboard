@@ -9,14 +9,8 @@ import { MetricCard } from "./components/MetricCard";
 import { ScenarioControls } from "./components/ScenarioControls";
 import { TrendChart } from "./components/TrendChart";
 import { VehicleList } from "./components/VehicleList";
-import {
-  acknowledgeAlert,
-  applyScenario,
-  fetchFleetSummary,
-  fetchVehicleHistory,
-  resolveAlert
-} from "./lib/api";
-import type { FleetSummary, ScenarioCommand, TelemetryMessage, VehicleTelemetry } from "./types";
+import { fetchVehicleHistory } from "./lib/api";
+import type { ScenarioCommand, TelemetryMessage, VehicleTelemetry } from "./types";
 import "./styles.css";
 
 const wsUrl = import.meta.env.VITE_WS_URL ?? "ws://localhost:8080";
@@ -28,7 +22,6 @@ function App() {
   const [history, setHistory] = React.useState<Record<string, VehicleTelemetry[]>>({});
   const [apiHistory, setApiHistory] = React.useState<VehicleTelemetry[]>([]);
   const [historyRange, setHistoryRange] = React.useState("live");
-  const [fleetSummary, setFleetSummary] = React.useState<FleetSummary>();
   const [scenarioStatus, setScenarioStatus] = React.useState<string>();
   const [selectedVehicleId, setSelectedVehicleId] = React.useState<string>();
   const [compareVehicleId, setCompareVehicleId] = React.useState<string>();
@@ -39,6 +32,7 @@ function App() {
   const [lastUpdated, setLastUpdated] = React.useState<string>();
   const [lastMessageAt, setLastMessageAt] = React.useState<number>();
   const [now, setNow] = React.useState(Date.now());
+  const socketRef = React.useRef<WebSocket | null>(null);
 
   React.useEffect(() => {
     let connectTimer: number | undefined;
@@ -56,11 +50,15 @@ function App() {
       socket = new WebSocket(wsUrl);
 
       socket.addEventListener("open", () => {
+        socketRef.current = socket ?? null;
         attempts = 0;
         setRetryAttempt(0);
         setConnectionState("live");
       });
       socket.addEventListener("close", () => {
+        if (socketRef.current === socket) {
+          socketRef.current = null;
+        }
         setConnectionState("offline");
         attempts += 1;
         setRetryAttempt(attempts);
@@ -74,6 +72,13 @@ function App() {
       socket.addEventListener("message", (event) => {
         const data = JSON.parse(event.data) as TelemetryMessage;
         setLastMessageAt(Date.now());
+
+        if (data.type === "command-result") {
+          if (data.command === "scenario") {
+            setScenarioStatus(data.ok ? `${data.vehicleId} scenario set to ${data.scenario}.` : (data.message ?? "Scenario failed."));
+          }
+          return;
+        }
 
         if (data.type !== "telemetry") {
           return;
@@ -122,19 +127,6 @@ function App() {
     return () => window.clearInterval(interval);
   }, []);
 
-  React.useEffect(() => {
-    if (connectionState !== "live" && !lastMessageAt) {
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      fetchFleetSummary().then(setFleetSummary).catch(() => undefined);
-    }, 5000);
-
-    fetchFleetSummary().then(setFleetSummary).catch(() => undefined);
-    return () => window.clearInterval(interval);
-  }, [connectionState, lastMessageAt]);
-
   const vehicleList = Object.values(vehicles).sort((a, b) => a.vehicleId.localeCompare(b.vehicleId));
   const selectedVehicle = selectedVehicleId ? vehicles[selectedVehicleId] : vehicleList[0];
   const compareVehicle =
@@ -168,8 +160,12 @@ function App() {
   }, [selectedVehicle?.vehicleId, historyRange, connectionState]);
 
   const handleAlertAction = (action: "acknowledge" | "resolve", alertId: string) => {
-    const request = action === "acknowledge" ? acknowledgeAlert(alertId) : resolveAlert(alertId);
-    request.catch(() => undefined);
+    if (socketRef.current?.readyState !== WebSocket.OPEN) {
+      setScenarioStatus("Telemetry stream is offline. Start the backend with npm run dev.");
+      return;
+    }
+
+    socketRef.current.send(JSON.stringify({ type: "alert", alertId, action }));
   };
 
   const handleScenario = (scenario: ScenarioCommand) => {
@@ -178,18 +174,13 @@ function App() {
     }
 
     const vehicleId = selectedVehicle.vehicleId;
+    if (socketRef.current?.readyState !== WebSocket.OPEN) {
+      setScenarioStatus("Telemetry stream is offline. Start the backend with npm run dev.");
+      return;
+    }
+
     setScenarioStatus(`Applying ${scenario} to ${vehicleId}...`);
-    applyScenario(vehicleId, scenario)
-      .then(() => {
-        setScenarioStatus(
-          scenario === "offline"
-            ? `${vehicleId} will disappear from the live stream on the next tick.`
-            : `${vehicleId} scenario set to ${scenario}. Watch the next telemetry tick.`
-        );
-      })
-      .catch(() => {
-        setScenarioStatus("Scenario API is offline. Start the backend with npm run dev.");
-      });
+    socketRef.current.send(JSON.stringify({ type: "scenario", vehicleId, scenario }));
   };
 
   return (
@@ -211,7 +202,7 @@ function App() {
         </div>
       </header>
 
-      <FleetSummaryStrip vehicles={vehicleList} summary={fleetSummary} />
+      <FleetSummaryStrip vehicles={vehicleList} />
 
       <section className="dashboard-grid">
         <VehicleList

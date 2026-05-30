@@ -41,6 +41,10 @@ wss.on("connection", (socket) => {
   socket.on("close", () => {
     console.info("Dashboard client disconnected.");
   });
+
+  socket.on("message", (rawMessage) => {
+    handleSocketCommand(String(rawMessage), socket);
+  });
 });
 
 const interval = setInterval(() => {
@@ -214,6 +218,48 @@ process.on("SIGTERM", shutdown);
 function sendJson(response: import("node:http").ServerResponse, body: unknown, status = 200) {
   response.writeHead(status, { "Content-Type": "application/json" });
   response.end(JSON.stringify(body));
+}
+
+function handleSocketCommand(rawMessage: string, socket: import("ws").WebSocket) {
+  try {
+    const message = JSON.parse(rawMessage) as
+      | { type: "scenario"; vehicleId?: string; scenario?: ScenarioCommand }
+      | { type: "alert"; alertId?: string; action?: "acknowledge" | "resolve" };
+
+    if (message.type === "scenario" && message.vehicleId && message.scenario) {
+      const applied = applyScenario(message.vehicleId, message.scenario);
+      socket.send(
+        JSON.stringify({
+          type: "command-result",
+          command: "scenario",
+          ok: applied,
+          vehicleId: message.vehicleId,
+          scenario: message.scenario,
+          message: applied ? "Scenario applied" : "Vehicle not found"
+        })
+      );
+      return;
+    }
+
+    if (message.type === "alert" && message.alertId && message.action) {
+      const status: AlertStatus = message.action === "resolve" ? "resolved" : "acknowledged";
+      alertStatuses.set(message.alertId, status);
+      socket.send(
+        JSON.stringify({
+          type: "command-result",
+          command: "alert",
+          ok: true,
+          alertId: message.alertId,
+          status
+        })
+      );
+      return;
+    }
+
+    socket.send(JSON.stringify({ type: "command-result", ok: false, message: "Unknown command" }));
+  } catch {
+    socket.send(JSON.stringify({ type: "command-result", ok: false, message: "Invalid command JSON" }));
+  }
 }
 
 function applyAlertLifecycle(vehicle: VehicleTelemetry): VehicleTelemetry {
