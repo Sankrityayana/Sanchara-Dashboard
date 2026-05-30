@@ -501,9 +501,9 @@ function buildScenarioPreview(vehicle: VehicleTelemetry, scenario: ScenarioComma
   if (scenario === "low-battery") {
     return {
       ...base,
-      batteryPct: 15,
-      rangeKm: 73.5,
-      healthScore: Math.min(base.healthScore, 58),
+      batteryPct: 12,
+      rangeKm: 58.8,
+      healthScore: Math.min(base.healthScore, 60),
       alerts: [createPreviewAlert(vehicle.vehicleId, "LOW_BATTERY", "critical", "Battery below 18%")]
     };
   }
@@ -551,7 +551,7 @@ function createPreviewAlert(
 }
 
 function calculateClientHealthScore(vehicle: VehicleTelemetry) {
-  const batteryPenalty = vehicle.batteryPct < 20 ? (20 - vehicle.batteryPct) * 3.2 : 0;
+  const batteryPenalty = vehicle.batteryPct < 20 ? (20 - vehicle.batteryPct) * 5 : 0;
   const batteryTempPenalty = Math.max(0, vehicle.batteryTempC - 42) * 2.2;
   const motorTempPenalty = Math.max(0, vehicle.motorTempC - 78) * 1.8;
   const efficiencyPenalty = Math.max(0, vehicle.efficiencyKwhPer100Km - 24) * 1.1;

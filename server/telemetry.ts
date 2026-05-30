@@ -34,30 +34,75 @@ export type TelemetryAlert = {
   status: AlertStatus;
 };
 
-const vehicleIds = ["SAN-001", "SAN-002", "SAN-003", "SAN-004"];
-
 type VehicleState = {
   vehicleId: string;
   speedKph: number;
   batteryPct: number;
+  batteryCapacityKwh: number;
+  ratedRangeKm: number;
+  motorTempC: number;
+  batteryTempC: number;
+  cabinTempC: number;
   odometerKm: number;
   lat: number;
   lon: number;
+  headingDeg: number;
   driveMode: DriveMode;
   modeTicksRemaining: number;
   forcedScenario?: ScenarioCommand;
 };
 
-const states: VehicleState[] = vehicleIds.map((vehicleId, index) => ({
-  vehicleId,
-  speedKph: 42 + index * 12,
-  batteryPct: 88 - index * 9,
-  odometerKm: 18000 + index * 2350,
-  lat: 37.3947 + index * 0.012,
-  lon: -122.1503 - index * 0.011,
-  driveMode: index === 0 ? "highway" : index === 1 ? "city" : index === 2 ? "charging" : "parked",
-  modeTicksRemaining: 18 + index * 6
-}));
+const vehicleProfiles: VehicleState[] = [
+  {
+    vehicleId: "SAN-001",
+    speedKph: 86,
+    batteryPct: 82,
+    batteryCapacityKwh: 78,
+    ratedRangeKm: 505,
+    motorTempC: 54,
+    batteryTempC: 32,
+    cabinTempC: 21,
+    odometerKm: 18000,
+    lat: 37.3947,
+    lon: -122.1503,
+    headingDeg: 18,
+    driveMode: "highway",
+    modeTicksRemaining: 28
+  },
+  {
+    vehicleId: "SAN-002",
+    speedKph: 38,
+    batteryPct: 64,
+    batteryCapacityKwh: 72,
+    ratedRangeKm: 455,
+    motorTempC: 43,
+    batteryTempC: 30,
+    cabinTempC: 22,
+    odometerKm: 20350,
+    lat: 37.4067,
+    lon: -122.1613,
+    headingDeg: 72,
+    driveMode: "city",
+    modeTicksRemaining: 34
+  },
+  {
+    vehicleId: "SAN-003",
+    speedKph: 0,
+    batteryPct: 41,
+    batteryCapacityKwh: 82,
+    ratedRangeKm: 530,
+    motorTempC: 31,
+    batteryTempC: 29,
+    cabinTempC: 20,
+    odometerKm: 22700,
+    lat: 37.4187,
+    lon: -122.1723,
+    headingDeg: 146,
+    driveMode: "charging",
+    modeTicksRemaining: 22
+  }
+];
+const states: VehicleState[] = vehicleProfiles.map(cloneState);
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -76,14 +121,40 @@ export function applyScenario(vehicleId: string, scenario: ScenarioCommand) {
     return false;
   }
 
+  const profile = vehicleProfiles.find((candidate) => candidate.vehicleId === vehicleId);
   state.forcedScenario = scenario === "normal" ? undefined : scenario;
 
+  if (scenario === "normal" && profile) {
+    Object.assign(state, {
+      ...cloneState(profile),
+      odometerKm: Math.max(state.odometerKm, profile.odometerKm)
+    });
+    return true;
+  }
+
   if (scenario === "low-battery") {
-    state.batteryPct = Math.min(state.batteryPct, 16);
+    state.driveMode = "city";
+    state.speedKph = 32;
+    state.batteryPct = 12;
+    state.motorTempC = 42;
+    state.batteryTempC = 32;
   }
 
   if (scenario === "charging") {
     state.driveMode = "charging";
+    state.speedKph = 0;
+    state.motorTempC = 31;
+    state.batteryTempC = 30;
+  }
+
+  if (scenario === "overheat") {
+    state.driveMode = "highway";
+    state.speedKph = 82;
+    state.motorTempC = 88;
+    state.batteryTempC = 47;
+  }
+
+  if (scenario === "offline") {
     state.speedKph = 0;
   }
 
@@ -99,18 +170,24 @@ export function listSimulatorVehicles() {
 }
 
 function nextVehicleTelemetry(state: VehicleState, index: number): VehicleTelemetry {
-  state.modeTicksRemaining -= 1;
-  if (state.modeTicksRemaining <= 0) {
+  if (!state.forcedScenario) {
+    state.modeTicksRemaining -= 1;
+  }
+  if (!state.forcedScenario && state.modeTicksRemaining <= 0) {
     state.driveMode = nextDriveMode(state.driveMode);
-    state.modeTicksRemaining = 16 + Math.floor(Math.random() * 28);
+    state.modeTicksRemaining = 24 + Math.floor(Math.random() * 20);
   }
 
   if (state.forcedScenario === "charging") {
     state.driveMode = "charging";
   }
 
-  const targetSpeed = targetSpeedForMode(state.driveMode);
-  state.speedKph = clamp(state.speedKph + (targetSpeed - state.speedKph) * 0.22 + jitter(9), 0, 138);
+  if (state.forcedScenario === "overheat" && state.driveMode === "charging") {
+    state.driveMode = "highway";
+  }
+
+  const targetSpeed = targetSpeedForMode(state.driveMode, index);
+  state.speedKph = clamp(state.speedKph + (targetSpeed - state.speedKph) * 0.18 + jitter(3), 0, 118);
 
   const isCharging = state.driveMode === "charging";
   const stateOfCharge: VehicleTelemetry["stateOfCharge"] = isCharging
@@ -120,45 +197,47 @@ function nextVehicleTelemetry(state: VehicleState, index: number): VehicleTeleme
       : "driving";
 
   if (isCharging) {
-    state.speedKph = clamp(state.speedKph * 0.35, 0, 6);
+    state.speedKph = 0;
   }
 
-  const batteryDelta =
-    stateOfCharge === "charging"
-      ? 0.09 + Math.random() * 0.11
-      : -(state.speedKph / 8200) - Math.max(0, state.speedKph - 95) / 14000;
-  state.batteryPct = clamp(state.batteryPct + batteryDelta, 10, 100);
+  const roadLoadKw = calculateRoadLoadKw(state.speedKph, state.driveMode);
+  const auxiliaryKw = state.driveMode === "parked" ? 0.8 : 1.8;
+  const chargingKw = isCharging ? -64 : 0;
+  const thermalLoadKw = state.forcedScenario === "overheat" ? 22 : 0;
+  const powerKw = isCharging ? chargingKw : roadLoadKw + auxiliaryKw + thermalLoadKw;
+
+  const batteryDeltaPct = isCharging
+    ? (-powerKw / state.batteryCapacityKwh / 3600) * 100
+    : -(Math.max(powerKw, 0) / state.batteryCapacityKwh / 3600) * 100;
+  state.batteryPct = clamp(state.batteryPct + batteryDeltaPct, 5, 100);
 
   if (state.forcedScenario === "low-battery") {
-    state.batteryPct = clamp(state.batteryPct - 0.04, 8, 18);
+    state.batteryPct = clamp(Math.min(state.batteryPct, 12) - 0.01, 8, 12);
   }
 
   state.odometerKm += state.speedKph / 3600;
-  state.lat += state.speedKph > 2 ? jitter(0.0007) : jitter(0.00008);
-  state.lon += state.speedKph > 2 ? jitter(0.0007) : jitter(0.00008);
+  advanceLocation(state);
 
-  const loadFactor = state.speedKph / 140;
-  const thermalBoost = state.forcedScenario === "overheat" ? 24 : 0;
-  const batteryTempC = 25 + loadFactor * 16 + (isCharging ? 4 : 0) + thermalBoost * 0.35 + jitter(2.8);
-  const motorTempC = 34 + loadFactor * 38 + thermalBoost + jitter(6);
-  const cabinTempC = 21 + Math.sin(Date.now() / 60000 + index) * 2 + jitter(0.8);
-  const powerKw =
-    stateOfCharge === "charging"
-      ? -48 - Math.random() * 42
-      : state.driveMode === "city" && Math.random() > 0.78
-        ? -8 - Math.random() * 18
-        : loadFactor * 190 + jitter(18);
+  const ambientTempC = 24 + Math.sin(Date.now() / 120000) * 2;
+  const thermalBoost = state.forcedScenario === "overheat" ? 20 : 0;
+  const targetMotorTempC = ambientTempC + 12 + Math.max(powerKw, 0) * 0.26 + thermalBoost;
+  const targetBatteryTempC = ambientTempC + 4 + Math.abs(powerKw) * 0.07 + thermalBoost * 0.35;
+  state.motorTempC = approach(state.motorTempC, targetMotorTempC, 0.14);
+  state.batteryTempC = approach(state.batteryTempC, targetBatteryTempC, 0.08);
+  state.cabinTempC = approach(state.cabinTempC, 21.5 + Math.sin(Date.now() / 90000 + index), 0.05);
+
   const efficiencyKwhPer100Km = calculateEfficiency(state.speedKph, powerKw);
+  const rangeKm = calculateRangeKm(state.batteryPct, state.ratedRangeKm, efficiencyKwhPer100Km, stateOfCharge);
   const healthScore = calculateHealthScore({
     batteryPct: state.batteryPct,
-    batteryTempC,
-    motorTempC,
+    batteryTempC: state.batteryTempC,
+    motorTempC: state.motorTempC,
     efficiencyKwhPer100Km
   });
   const alerts = buildAlerts(state.vehicleId, {
     batteryPct: state.batteryPct,
-    batteryTempC,
-    motorTempC,
+    batteryTempC: state.batteryTempC,
+    motorTempC: state.motorTempC,
     speedKph: state.speedKph,
     healthScore,
     stateOfCharge
@@ -169,10 +248,10 @@ function nextVehicleTelemetry(state: VehicleState, index: number): VehicleTeleme
     timestamp: new Date().toISOString(),
     speedKph: Number(state.speedKph.toFixed(1)),
     batteryPct: Number(state.batteryPct.toFixed(1)),
-    batteryTempC: Number(batteryTempC.toFixed(1)),
-    cabinTempC: Number(cabinTempC.toFixed(1)),
-    motorTempC: Number(motorTempC.toFixed(1)),
-    rangeKm: Number((state.batteryPct * 4.9).toFixed(1)),
+    batteryTempC: Number(state.batteryTempC.toFixed(1)),
+    cabinTempC: Number(state.cabinTempC.toFixed(1)),
+    motorTempC: Number(state.motorTempC.toFixed(1)),
+    rangeKm: Number(rangeKm.toFixed(1)),
     odometerKm: Number(state.odometerKm.toFixed(1)),
     powerKw: Number(powerKw.toFixed(1)),
     efficiencyKwhPer100Km: Number(efficiencyKwhPer100Km.toFixed(1)),
@@ -199,7 +278,7 @@ export function calculateHealthScore({
   motorTempC: number;
   efficiencyKwhPer100Km: number;
 }) {
-  const batteryPenalty = batteryPct < 20 ? (20 - batteryPct) * 3.2 : 0;
+  const batteryPenalty = batteryPct < 20 ? (20 - batteryPct) * 5 : 0;
   const batteryTempPenalty = Math.max(0, batteryTempC - 42) * 2.2;
   const motorTempPenalty = Math.max(0, motorTempC - 78) * 1.8;
   const efficiencyPenalty = Math.max(0, efficiencyKwhPer100Km - 24) * 1.1;
@@ -288,23 +367,69 @@ function calculateEfficiency(speedKph: number, powerKw: number) {
     return 0;
   }
 
-  return clamp((powerKw / speedKph) * 100, 10, 42);
+  return clamp((powerKw / speedKph) * 100, 12, 34);
 }
 
-function targetSpeedForMode(mode: DriveMode) {
+function calculateRoadLoadKw(speedKph: number, mode: DriveMode) {
+  if (mode === "parked" || mode === "charging") {
+    return 0;
+  }
+
+  const rollingKw = 0.12 * speedKph;
+  const aeroKw = 0.00042 * speedKph ** 3;
+  const cityStopGoKw = mode === "city" ? 4 + Math.max(0, 55 - speedKph) * 0.08 : 0;
+  return rollingKw + aeroKw + cityStopGoKw;
+}
+
+function calculateRangeKm(
+  batteryPct: number,
+  ratedRangeKm: number,
+  efficiencyKwhPer100Km: number,
+  stateOfCharge: VehicleTelemetry["stateOfCharge"]
+) {
+  const baseRange = (batteryPct / 100) * ratedRangeKm;
+  if (stateOfCharge === "charging" || efficiencyKwhPer100Km === 0) {
+    return baseRange;
+  }
+
+  const efficiencyFactor = clamp(18 / efficiencyKwhPer100Km, 0.72, 1.12);
+  return baseRange * efficiencyFactor;
+}
+
+function targetSpeedForMode(mode: DriveMode, index: number) {
   switch (mode) {
     case "highway":
-      return 102 + jitter(18);
+      return 94 + index * 4 + jitter(6);
     case "city":
-      return 42 + jitter(28);
+      return 34 + index * 3 + jitter(8);
     case "charging":
       return 0;
     case "parked":
-      return Math.random() > 0.88 ? 8 : 0;
+      return 0;
   }
 }
 
 function nextDriveMode(current: DriveMode): DriveMode {
-  const modes: DriveMode[] = current === "charging" ? ["city", "parked"] : ["city", "highway", "charging", "parked"];
+  const modes: DriveMode[] = current === "charging" ? ["city", "parked"] : ["city", "highway", "parked"];
   return modes[Math.floor(Math.random() * modes.length)];
+}
+
+function approach(current: number, target: number, rate: number) {
+  return current + (target - current) * rate;
+}
+
+function advanceLocation(state: VehicleState) {
+  if (state.speedKph < 1) {
+    return;
+  }
+
+  const distanceKm = state.speedKph / 3600;
+  const headingRad = (state.headingDeg * Math.PI) / 180;
+  state.lat += (Math.cos(headingRad) * distanceKm) / 111;
+  state.lon += (Math.sin(headingRad) * distanceKm) / (111 * Math.cos((state.lat * Math.PI) / 180));
+  state.headingDeg = (state.headingDeg + jitter(1.2) + 360) % 360;
+}
+
+function cloneState(state: VehicleState): VehicleState {
+  return { ...state };
 }
