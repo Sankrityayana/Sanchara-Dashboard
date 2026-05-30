@@ -70,9 +70,11 @@ function App() {
           return;
         }
 
+        const vehicles = data.vehicles.map(normalizeVehicle);
+
         setVehicles((current) => {
           const next = { ...current };
-          for (const vehicle of data.vehicles) {
+          for (const vehicle of vehicles) {
             next[vehicle.vehicleId] = vehicle;
           }
           return next;
@@ -80,7 +82,7 @@ function App() {
 
         setHistory((current) => {
           const next = { ...current };
-          for (const vehicle of data.vehicles) {
+          for (const vehicle of vehicles) {
             next[vehicle.vehicleId] = [...(next[vehicle.vehicleId] ?? []), vehicle].slice(
               -maxHistoryPoints
             );
@@ -88,8 +90,8 @@ function App() {
           return next;
         });
 
-        setSelectedVehicleId((current) => current ?? data.vehicles[0]?.vehicleId);
-        setCompareVehicleId((current) => current ?? data.vehicles[1]?.vehicleId);
+        setSelectedVehicleId((current) => current ?? vehicles[0]?.vehicleId);
+        setCompareVehicleId((current) => current ?? vehicles[1]?.vehicleId);
         setLastUpdated(new Date().toLocaleTimeString());
       });
     };
@@ -98,7 +100,9 @@ function App() {
 
     return () => {
       window.clearTimeout(reconnectTimer);
-      socket?.close();
+      if (socket && socket.readyState !== WebSocket.CLOSED) {
+        socket.close();
+      }
     };
   }, []);
 
@@ -126,7 +130,7 @@ function App() {
   const selectedHistory = historyRange === "live" ? selectedLiveHistory : apiHistory;
   const routeHistory = selectedHistory.length ? selectedHistory : selectedLiveHistory;
   const fleetAlerts = vehicleList.flatMap((vehicle) =>
-    vehicle.alerts.map((alert) => ({ ...alert, vehicleId: vehicle.vehicleId }))
+    (vehicle.alerts ?? []).map((alert) => ({ ...alert, vehicleId: vehicle.vehicleId }))
   );
   const isStale = Boolean(lastMessageAt && now - lastMessageAt > staleAfterMs);
   const effectiveConnectionState = isStale ? "offline" : connectionState;
@@ -328,3 +332,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>
 );
+
+function normalizeVehicle(vehicle: VehicleTelemetry): VehicleTelemetry {
+  return {
+    ...vehicle,
+    efficiencyKwhPer100Km: vehicle.efficiencyKwhPer100Km ?? 0,
+    healthScore: vehicle.healthScore ?? 100,
+    driveMode: vehicle.driveMode ?? "city",
+    alerts: vehicle.alerts ?? []
+  };
+}
