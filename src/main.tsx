@@ -1,26 +1,34 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { BatteryCharging, Gauge, Radio, ShieldCheck, Thermometer } from "lucide-react";
+import { AlertPanel } from "./components/AlertPanel";
+import { ComparisonPanel } from "./components/ComparisonPanel";
+import { FleetMap } from "./components/FleetMap";
+import { FleetSummaryStrip } from "./components/FleetSummaryStrip";
+import { MetricCard } from "./components/MetricCard";
+import { ScenarioControls } from "./components/ScenarioControls";
+import { TrendChart } from "./components/TrendChart";
+import { VehicleList } from "./components/VehicleList";
 import {
-  Activity,
-  AlertTriangle,
-  BatteryCharging,
-  Gauge,
-  MapPin,
-  Radio,
-  ShieldCheck,
-  Thermometer,
-  Zap
-} from "lucide-react";
-import type { VehicleTelemetry, TelemetryMessage } from "./types";
+  acknowledgeAlert,
+  applyScenario,
+  fetchFleetSummary,
+  fetchVehicleHistory,
+  resolveAlert
+} from "./lib/api";
+import type { FleetSummary, ScenarioCommand, TelemetryMessage, VehicleTelemetry } from "./types";
 import "./styles.css";
 
 const wsUrl = import.meta.env.VITE_WS_URL ?? "ws://localhost:8080";
-const maxHistoryPoints = 36;
+const maxHistoryPoints = 72;
 const staleAfterMs = 7000;
 
 function App() {
   const [vehicles, setVehicles] = React.useState<Record<string, VehicleTelemetry>>({});
   const [history, setHistory] = React.useState<Record<string, VehicleTelemetry[]>>({});
+  const [apiHistory, setApiHistory] = React.useState<VehicleTelemetry[]>([]);
+  const [historyRange, setHistoryRange] = React.useState("live");
+  const [fleetSummary, setFleetSummary] = React.useState<FleetSummary>();
   const [selectedVehicleId, setSelectedVehicleId] = React.useState<string>();
   const [compareVehicleId, setCompareVehicleId] = React.useState<string>();
   const [connectionState, setConnectionState] = React.useState<"connecting" | "live" | "offline">(
@@ -57,10 +65,6 @@ function App() {
       socket.addEventListener("message", (event) => {
         const data = JSON.parse(event.data) as TelemetryMessage;
         setLastMessageAt(Date.now());
-
-        if (data.type === "heartbeat") {
-          return;
-        }
 
         if (data.type !== "telemetry") {
           return;
@@ -103,18 +107,53 @@ function App() {
     return () => window.clearInterval(interval);
   }, []);
 
+  React.useEffect(() => {
+    const interval = window.setInterval(() => {
+      fetchFleetSummary().then(setFleetSummary).catch(() => undefined);
+    }, 5000);
+
+    fetchFleetSummary().then(setFleetSummary).catch(() => undefined);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const vehicleList = Object.values(vehicles).sort((a, b) => a.vehicleId.localeCompare(b.vehicleId));
   const selectedVehicle = selectedVehicleId ? vehicles[selectedVehicleId] : vehicleList[0];
   const compareVehicle =
     compareVehicleId && compareVehicleId !== selectedVehicle?.vehicleId
       ? vehicles[compareVehicleId]
       : vehicleList.find((vehicle) => vehicle.vehicleId !== selectedVehicle?.vehicleId);
-  const selectedHistory = selectedVehicle ? history[selectedVehicle.vehicleId] ?? [] : [];
+  const selectedLiveHistory = selectedVehicle ? history[selectedVehicle.vehicleId] ?? [] : [];
+  const selectedHistory = historyRange === "live" ? selectedLiveHistory : apiHistory;
+  const routeHistory = selectedHistory.length ? selectedHistory : selectedLiveHistory;
   const fleetAlerts = vehicleList.flatMap((vehicle) =>
     vehicle.alerts.map((alert) => ({ ...alert, vehicleId: vehicle.vehicleId }))
   );
   const isStale = Boolean(lastMessageAt && now - lastMessageAt > staleAfterMs);
   const effectiveConnectionState = isStale ? "offline" : connectionState;
+
+  React.useEffect(() => {
+    if (!selectedVehicle || historyRange === "live") {
+      setApiHistory([]);
+      return;
+    }
+
+    fetchVehicleHistory(selectedVehicle.vehicleId, historyRange)
+      .then(setApiHistory)
+      .catch(() => setApiHistory([]));
+  }, [selectedVehicle?.vehicleId, historyRange]);
+
+  const handleAlertAction = (action: "acknowledge" | "resolve", alertId: string) => {
+    const request = action === "acknowledge" ? acknowledgeAlert(alertId) : resolveAlert(alertId);
+    request.catch(() => undefined);
+  };
+
+  const handleScenario = (scenario: ScenarioCommand) => {
+    if (!selectedVehicle) {
+      return;
+    }
+
+    applyScenario(selectedVehicle.vehicleId, scenario).catch(() => undefined);
+  };
 
   return (
     <main className="app-shell">
@@ -135,57 +174,15 @@ function App() {
         </div>
       </header>
 
-      <section className="status-strip" aria-label="Fleet summary">
-        <MetricCard
-          icon={<Gauge />}
-          label="Fleet avg speed"
-          value={`${average(vehicleList.map((vehicle) => vehicle.speedKph)).toFixed(1)} kph`}
-        />
-        <MetricCard
-          icon={<BatteryCharging />}
-          label="Fleet avg battery"
-          value={`${average(vehicleList.map((vehicle) => vehicle.batteryPct)).toFixed(1)}%`}
-        />
-        <MetricCard
-          icon={<Thermometer />}
-          label="Max motor temp"
-          value={`${max(vehicleList.map((vehicle) => vehicle.motorTempC)).toFixed(1)} C`}
-        />
-        <MetricCard
-          icon={<ShieldCheck />}
-          label="Fleet health"
-          value={`${average(vehicleList.map((vehicle) => vehicle.healthScore)).toFixed(0)} / 100`}
-        />
-      </section>
+      <FleetSummaryStrip vehicles={vehicleList} summary={fleetSummary} />
 
       <section className="dashboard-grid">
-        <aside className="vehicle-list" aria-label="Vehicles">
-          <div className="panel-heading">
-            <h2>Vehicles</h2>
-            <span>{lastUpdated ? `Updated ${lastUpdated}` : "Waiting for stream"}</span>
-          </div>
-          {vehicleList.map((vehicle) => (
-            <button
-              className={`vehicle-row ${
-                vehicle.vehicleId === selectedVehicle?.vehicleId ? "selected" : ""
-              }`}
-              key={vehicle.vehicleId}
-              onClick={() => setSelectedVehicleId(vehicle.vehicleId)}
-              type="button"
-            >
-              <span>
-                <strong>{vehicle.vehicleId}</strong>
-                <small>
-                  {vehicle.driveMode} · {vehicle.stateOfCharge}
-                </small>
-              </span>
-              <span className="vehicle-meta">
-                <strong>{vehicle.speedKph.toFixed(0)} kph</strong>
-                <small className={healthClass(vehicle.healthScore)}>{vehicle.healthScore}/100</small>
-              </span>
-            </button>
-          ))}
-        </aside>
+        <VehicleList
+          vehicles={vehicleList}
+          selectedVehicleId={selectedVehicle?.vehicleId}
+          lastUpdated={lastUpdated}
+          onSelect={setSelectedVehicleId}
+        />
 
         <section className="primary-panel" aria-label="Selected vehicle telemetry">
           {selectedVehicle ? (
@@ -219,6 +216,20 @@ function App() {
                 />
               </div>
 
+              <div className="chart-toolbar">
+                <h3>Telemetry history</h3>
+                <select
+                  aria-label="History range"
+                  value={historyRange}
+                  onChange={(event) => setHistoryRange(event.target.value)}
+                >
+                  <option value="live">Live memory</option>
+                  <option value="5m">Last 5 min</option>
+                  <option value="30m">Last 30 min</option>
+                  <option value="1h">Last 1 hour</option>
+                </select>
+              </div>
+
               <div className="chart-grid">
                 <TrendChart
                   title="Speed trend"
@@ -247,7 +258,11 @@ function App() {
               </div>
 
               <section className="insight-grid" aria-label="Alerts and comparison">
-                <AlertPanel alerts={fleetAlerts} />
+                <AlertPanel
+                  alerts={fleetAlerts}
+                  onAcknowledge={(alertId) => handleAlertAction("acknowledge", alertId)}
+                  onResolve={(alertId) => handleAlertAction("resolve", alertId)}
+                />
                 <ComparisonPanel
                   vehicles={vehicleList}
                   primary={selectedVehicle}
@@ -255,6 +270,7 @@ function App() {
                   compareVehicleId={compareVehicle?.vehicleId}
                   onCompareVehicleChange={setCompareVehicleId}
                 />
+                <ScenarioControls selectedVehicle={selectedVehicle} onApply={handleScenario} />
               </section>
 
               <dl className="detail-grid">
@@ -292,7 +308,11 @@ function App() {
                 </div>
               </dl>
 
-              <FleetMap vehicles={vehicleList} selectedVehicleId={selectedVehicle.vehicleId} />
+              <FleetMap
+                vehicles={vehicleList}
+                selectedVehicleId={selectedVehicle.vehicleId}
+                route={routeHistory}
+              />
             </>
           ) : (
             <div className="empty-state">Waiting for telemetry stream...</div>
@@ -301,222 +321,6 @@ function App() {
       </section>
     </main>
   );
-}
-
-function AlertPanel({
-  alerts
-}: {
-  alerts: Array<{ vehicleId: string; code: string; severity: string; message: string }>;
-}) {
-  const visibleAlerts = alerts.slice(0, 5);
-
-  return (
-    <article className="insight-panel">
-      <div className="panel-heading">
-        <h3>Active alerts</h3>
-        <span>{alerts.length} open</span>
-      </div>
-      {visibleAlerts.length ? (
-        <div className="alert-list">
-          {visibleAlerts.map((alert) => (
-            <div className={`alert-row ${alert.severity}`} key={`${alert.vehicleId}-${alert.code}`}>
-              <AlertTriangle size={18} />
-              <span>
-                <strong>{alert.vehicleId}</strong>
-                <small>{alert.message}</small>
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="quiet-state">No active alerts</div>
-      )}
-    </article>
-  );
-}
-
-function ComparisonPanel({
-  vehicles,
-  primary,
-  compare,
-  compareVehicleId,
-  onCompareVehicleChange
-}: {
-  vehicles: VehicleTelemetry[];
-  primary: VehicleTelemetry;
-  compare?: VehicleTelemetry;
-  compareVehicleId?: string;
-  onCompareVehicleChange: (vehicleId: string) => void;
-}) {
-  return (
-    <article className="insight-panel">
-      <div className="panel-heading">
-        <h3>Compare vehicles</h3>
-        <select
-          aria-label="Vehicle to compare"
-          value={compareVehicleId ?? ""}
-          onChange={(event) => onCompareVehicleChange(event.target.value)}
-        >
-          {vehicles
-            .filter((vehicle) => vehicle.vehicleId !== primary.vehicleId)
-            .map((vehicle) => (
-              <option key={vehicle.vehicleId} value={vehicle.vehicleId}>
-                {vehicle.vehicleId}
-              </option>
-            ))}
-        </select>
-      </div>
-      {compare ? (
-        <div className="compare-table">
-          <CompareRow label="Speed" primary={`${primary.speedKph} kph`} compare={`${compare.speedKph} kph`} />
-          <CompareRow label="Battery" primary={`${primary.batteryPct}%`} compare={`${compare.batteryPct}%`} />
-          <CompareRow label="Health" primary={`${primary.healthScore}`} compare={`${compare.healthScore}`} />
-          <CompareRow
-            label="Efficiency"
-            primary={`${primary.efficiencyKwhPer100Km}`}
-            compare={`${compare.efficiencyKwhPer100Km}`}
-          />
-        </div>
-      ) : (
-        <div className="quiet-state">Need another vehicle to compare</div>
-      )}
-    </article>
-  );
-}
-
-function CompareRow({ label, primary, compare }: { label: string; primary: string; compare: string }) {
-  return (
-    <div className="compare-row">
-      <span>{label}</span>
-      <strong>{primary}</strong>
-      <strong>{compare}</strong>
-    </div>
-  );
-}
-
-function FleetMap({
-  vehicles,
-  selectedVehicleId
-}: {
-  vehicles: VehicleTelemetry[];
-  selectedVehicleId: string;
-}) {
-  const lats = vehicles.map((vehicle) => vehicle.location.lat);
-  const lons = vehicles.map((vehicle) => vehicle.location.lon);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLon = Math.min(...lons);
-  const maxLon = Math.max(...lons);
-
-  return (
-    <section className="map-panel" aria-label="Fleet location overview">
-      <div className="panel-heading">
-        <h3>Fleet location</h3>
-        <span>Mock GPS</span>
-      </div>
-      <div className="map-canvas">
-        {vehicles.map((vehicle) => {
-          const x = 8 + ((vehicle.location.lon - minLon) / Math.max(maxLon - minLon, 0.0001)) * 84;
-          const y = 8 + ((maxLat - vehicle.location.lat) / Math.max(maxLat - minLat, 0.0001)) * 84;
-          return (
-            <div
-              className={`map-marker ${vehicle.vehicleId === selectedVehicleId ? "selected" : ""}`}
-              key={vehicle.vehicleId}
-              style={{ left: `${x}%`, top: `${y}%` }}
-              title={vehicle.vehicleId}
-            >
-              <MapPin size={20} />
-              <span>{vehicle.vehicleId}</span>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function MetricCard({
-  icon,
-  label,
-  value
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <article className="metric-card">
-      <div className="metric-icon">{icon}</div>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </article>
-  );
-}
-
-function TrendChart({
-  title,
-  data,
-  unit,
-  color
-}: {
-  title: string;
-  data: number[];
-  unit: string;
-  color: string;
-}) {
-  const width = 520;
-  const height = 180;
-  const padding = 18;
-  const minValue = Math.min(...data, 0);
-  const maxValue = Math.max(...data, 1);
-  const range = Math.max(maxValue - minValue, 1);
-  const points = data
-    .map((value, index) => {
-      const x = padding + (index / Math.max(data.length - 1, 1)) * (width - padding * 2);
-      const y = height - padding - ((value - minValue) / range) * (height - padding * 2);
-      return `${x},${y}`;
-    })
-    .join(" ");
-  const latest = data.at(-1) ?? 0;
-
-  return (
-    <article className="trend-panel">
-      <div className="panel-heading">
-        <h3>{title}</h3>
-        <span>
-          {latest.toFixed(1)} {unit}
-        </span>
-      </div>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
-        <polyline className="chart-gridline" points={`0,${height - padding} ${width},${height - padding}`} />
-        <polyline fill="none" points={points} stroke={color} strokeLinecap="round" strokeWidth="4" />
-      </svg>
-    </article>
-  );
-}
-
-function average(values: number[]) {
-  if (!values.length) {
-    return 0;
-  }
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function max(values: number[]) {
-  if (!values.length) {
-    return 0;
-  }
-  return Math.max(...values);
-}
-
-function healthClass(score: number) {
-  if (score < 60) {
-    return "critical";
-  }
-  if (score < 78) {
-    return "warning";
-  }
-  return "healthy";
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

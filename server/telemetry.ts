@@ -22,11 +22,15 @@ export type VehicleTelemetry = {
 
 export type DriveMode = "city" | "highway" | "charging" | "parked";
 export type AlertSeverity = "info" | "warning" | "critical";
+export type AlertStatus = "active" | "acknowledged" | "resolved";
+export type ScenarioCommand = "normal" | "low-battery" | "overheat" | "charging" | "offline";
 
 export type TelemetryAlert = {
+  id: string;
   code: string;
   severity: AlertSeverity;
   message: string;
+  status: AlertStatus;
 };
 
 const vehicleIds = ["SAN-001", "SAN-002", "SAN-003", "SAN-004"];
@@ -40,6 +44,7 @@ type VehicleState = {
   lon: number;
   driveMode: DriveMode;
   modeTicksRemaining: number;
+  forcedScenario?: ScenarioCommand;
 };
 
 const states: VehicleState[] = vehicleIds.map((vehicleId, index) => ({
@@ -59,7 +64,37 @@ const clamp = (value: number, min: number, max: number) =>
 const jitter = (amount: number) => (Math.random() - 0.5) * amount;
 
 export function nextTelemetry(): VehicleTelemetry[] {
-  return states.map((state, index) => nextVehicleTelemetry(state, index));
+  return states
+    .filter((state) => state.forcedScenario !== "offline")
+    .map((state, index) => nextVehicleTelemetry(state, index));
+}
+
+export function applyScenario(vehicleId: string, scenario: ScenarioCommand) {
+  const state = states.find((candidate) => candidate.vehicleId === vehicleId);
+  if (!state) {
+    return false;
+  }
+
+  state.forcedScenario = scenario === "normal" ? undefined : scenario;
+
+  if (scenario === "low-battery") {
+    state.batteryPct = Math.min(state.batteryPct, 16);
+  }
+
+  if (scenario === "charging") {
+    state.driveMode = "charging";
+    state.speedKph = 0;
+  }
+
+  return true;
+}
+
+export function listSimulatorVehicles() {
+  return states.map((state) => ({
+    vehicleId: state.vehicleId,
+    scenario: state.forcedScenario ?? "normal",
+    driveMode: state.driveMode
+  }));
 }
 
 function nextVehicleTelemetry(state: VehicleState, index: number): VehicleTelemetry {
@@ -67,6 +102,10 @@ function nextVehicleTelemetry(state: VehicleState, index: number): VehicleTeleme
   if (state.modeTicksRemaining <= 0) {
     state.driveMode = nextDriveMode(state.driveMode);
     state.modeTicksRemaining = 16 + Math.floor(Math.random() * 28);
+  }
+
+  if (state.forcedScenario === "charging") {
+    state.driveMode = "charging";
   }
 
   const targetSpeed = targetSpeedForMode(state.driveMode);
@@ -88,13 +127,19 @@ function nextVehicleTelemetry(state: VehicleState, index: number): VehicleTeleme
       ? 0.09 + Math.random() * 0.11
       : -(state.speedKph / 8200) - Math.max(0, state.speedKph - 95) / 14000;
   state.batteryPct = clamp(state.batteryPct + batteryDelta, 10, 100);
+
+  if (state.forcedScenario === "low-battery") {
+    state.batteryPct = clamp(state.batteryPct - 0.04, 8, 18);
+  }
+
   state.odometerKm += state.speedKph / 3600;
   state.lat += state.speedKph > 2 ? jitter(0.0007) : jitter(0.00008);
   state.lon += state.speedKph > 2 ? jitter(0.0007) : jitter(0.00008);
 
   const loadFactor = state.speedKph / 140;
-  const batteryTempC = 25 + loadFactor * 16 + (isCharging ? 4 : 0) + jitter(2.8);
-  const motorTempC = 34 + loadFactor * 38 + jitter(6);
+  const thermalBoost = state.forcedScenario === "overheat" ? 24 : 0;
+  const batteryTempC = 25 + loadFactor * 16 + (isCharging ? 4 : 0) + thermalBoost * 0.35 + jitter(2.8);
+  const motorTempC = 34 + loadFactor * 38 + thermalBoost + jitter(6);
   const cabinTempC = 21 + Math.sin(Date.now() / 60000 + index) * 2 + jitter(0.8);
   const powerKw =
     stateOfCharge === "charging"
@@ -109,7 +154,7 @@ function nextVehicleTelemetry(state: VehicleState, index: number): VehicleTeleme
     motorTempC,
     efficiencyKwhPer100Km
   });
-  const alerts = buildAlerts({
+  const alerts = buildAlerts(state.vehicleId, {
     batteryPct: state.batteryPct,
     batteryTempC,
     motorTempC,
@@ -175,7 +220,9 @@ export function validateTelemetryBatch(batch: VehicleTelemetry[]) {
   );
 }
 
-function buildAlerts({
+function buildAlerts(
+  vehicleId: string,
+  {
   batteryPct,
   batteryTempC,
   motorTempC,
@@ -193,30 +240,45 @@ function buildAlerts({
   const alerts: TelemetryAlert[] = [];
 
   if (batteryPct < 18 && stateOfCharge !== "charging") {
-    alerts.push({ code: "LOW_BATTERY", severity: "critical", message: "Battery below 18%" });
+    alerts.push(createAlert(vehicleId, "LOW_BATTERY", "critical", "Battery below 18%"));
   } else if (batteryPct < 28 && stateOfCharge !== "charging") {
-    alerts.push({ code: "BATTERY_WATCH", severity: "warning", message: "Battery below 28%" });
+    alerts.push(createAlert(vehicleId, "BATTERY_WATCH", "warning", "Battery below 28%"));
   }
 
   if (motorTempC > 86) {
-    alerts.push({ code: "MOTOR_TEMP_CRITICAL", severity: "critical", message: "Motor temperature critical" });
+    alerts.push(createAlert(vehicleId, "MOTOR_TEMP_CRITICAL", "critical", "Motor temperature critical"));
   } else if (motorTempC > 74) {
-    alerts.push({ code: "MOTOR_TEMP_WATCH", severity: "warning", message: "Motor temperature elevated" });
+    alerts.push(createAlert(vehicleId, "MOTOR_TEMP_WATCH", "warning", "Motor temperature elevated"));
   }
 
   if (batteryTempC > 46) {
-    alerts.push({ code: "BATTERY_TEMP_WATCH", severity: "warning", message: "Battery temperature elevated" });
+    alerts.push(createAlert(vehicleId, "BATTERY_TEMP_WATCH", "warning", "Battery temperature elevated"));
   }
 
   if (speedKph > 125) {
-    alerts.push({ code: "SPEED_SPIKE", severity: "warning", message: "High-speed event detected" });
+    alerts.push(createAlert(vehicleId, "SPEED_SPIKE", "warning", "High-speed event detected"));
   }
 
   if (healthScore < 55) {
-    alerts.push({ code: "HEALTH_DEGRADED", severity: "critical", message: "Vehicle health score degraded" });
+    alerts.push(createAlert(vehicleId, "HEALTH_DEGRADED", "critical", "Vehicle health score degraded"));
   }
 
   return alerts;
+}
+
+function createAlert(
+  vehicleId: string,
+  code: string,
+  severity: AlertSeverity,
+  message: string
+): TelemetryAlert {
+  return {
+    id: `${vehicleId}:${code}`,
+    code,
+    severity,
+    message,
+    status: "active"
+  };
 }
 
 function calculateEfficiency(speedKph: number, powerKw: number) {

@@ -13,6 +13,10 @@ test("generated telemetry batches are valid", () => {
     assert.ok(vehicle.batteryPct >= 0 && vehicle.batteryPct <= 100);
     assert.ok(vehicle.healthScore >= 0 && vehicle.healthScore <= 100);
     assert.ok(Number.isFinite(vehicle.efficiencyKwhPer100Km));
+    for (const alert of vehicle.alerts) {
+      assert.ok(alert.id.startsWith(`${vehicle.vehicleId}:`));
+      assert.equal(alert.status, "active");
+    }
   }
 });
 
