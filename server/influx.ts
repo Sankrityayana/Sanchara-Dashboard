@@ -95,6 +95,7 @@ export class InfluxTelemetryWriter {
         efficiencyKwhPer100Km: numberValue(row.efficiencyKwhPer100Km),
         healthScore: numberValue(row.healthScore),
         driveMode: String(row.driveMode ?? "city") as VehicleTelemetry["driveMode"],
+        scenario: "normal",
         alerts: [],
         stateOfCharge: String(row.stateOfCharge ?? "driving") as VehicleTelemetry["stateOfCharge"],
         location: {

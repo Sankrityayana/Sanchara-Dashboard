@@ -35,6 +35,7 @@ export type VehicleTelemetry = {
   efficiencyKwhPer100Km: number;
   healthScore: number;
   driveMode: DriveMode;
+  scenario: ScenarioCommand;
   alerts: TelemetryAlert[];
   stateOfCharge: VehicleState;
   location: {

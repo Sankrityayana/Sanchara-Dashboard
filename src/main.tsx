@@ -29,6 +29,7 @@ function App() {
   const [apiHistory, setApiHistory] = React.useState<VehicleTelemetry[]>([]);
   const [historyRange, setHistoryRange] = React.useState("live");
   const [fleetSummary, setFleetSummary] = React.useState<FleetSummary>();
+  const [scenarioStatus, setScenarioStatus] = React.useState<string>();
   const [selectedVehicleId, setSelectedVehicleId] = React.useState<string>();
   const [compareVehicleId, setCompareVehicleId] = React.useState<string>();
   const [connectionState, setConnectionState] = React.useState<"connecting" | "live" | "offline">(
@@ -80,8 +81,8 @@ function App() {
 
         const vehicles = data.vehicles.map(normalizeVehicle);
 
-        setVehicles((current) => {
-          const next = { ...current };
+        setVehicles(() => {
+          const next: Record<string, VehicleTelemetry> = {};
           for (const vehicle of vehicles) {
             next[vehicle.vehicleId] = vehicle;
           }
@@ -150,6 +151,12 @@ function App() {
   const effectiveConnectionState = isStale ? "offline" : connectionState;
 
   React.useEffect(() => {
+    if (vehicleList.length && selectedVehicleId && !vehicles[selectedVehicleId]) {
+      setSelectedVehicleId(vehicleList[0].vehicleId);
+    }
+  }, [selectedVehicleId, vehicleList, vehicles]);
+
+  React.useEffect(() => {
     if (!selectedVehicle || historyRange === "live" || connectionState !== "live") {
       setApiHistory([]);
       return;
@@ -170,7 +177,19 @@ function App() {
       return;
     }
 
-    applyScenario(selectedVehicle.vehicleId, scenario).catch(() => undefined);
+    const vehicleId = selectedVehicle.vehicleId;
+    setScenarioStatus(`Applying ${scenario} to ${vehicleId}...`);
+    applyScenario(vehicleId, scenario)
+      .then(() => {
+        setScenarioStatus(
+          scenario === "offline"
+            ? `${vehicleId} will disappear from the live stream on the next tick.`
+            : `${vehicleId} scenario set to ${scenario}. Watch the next telemetry tick.`
+        );
+      })
+      .catch(() => {
+        setScenarioStatus("Scenario API is offline. Start the backend with npm run dev.");
+      });
   };
 
   return (
@@ -288,7 +307,11 @@ function App() {
                   compareVehicleId={compareVehicle?.vehicleId}
                   onCompareVehicleChange={setCompareVehicleId}
                 />
-                <ScenarioControls selectedVehicle={selectedVehicle} onApply={handleScenario} />
+                <ScenarioControls
+                  selectedVehicle={selectedVehicle}
+                  status={scenarioStatus}
+                  onApply={handleScenario}
+                />
               </section>
 
               <dl className="detail-grid">
@@ -353,6 +376,7 @@ function normalizeVehicle(vehicle: VehicleTelemetry): VehicleTelemetry {
     efficiencyKwhPer100Km: vehicle.efficiencyKwhPer100Km ?? 0,
     healthScore: vehicle.healthScore ?? 100,
     driveMode: vehicle.driveMode ?? "city",
+    scenario: vehicle.scenario ?? "normal",
     alerts: vehicle.alerts ?? []
   };
 }

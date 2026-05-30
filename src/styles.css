@@ -405,6 +405,14 @@ dd {
   min-height: 40px;
 }
 
+.scenario-status {
+  margin-top: 12px;
+  color: #475569;
+  font-size: 0.88rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
 .quiet-state {
   display: grid;
   min-height: 136px;

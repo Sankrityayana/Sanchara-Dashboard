@@ -12,6 +12,7 @@ export type VehicleTelemetry = {
   efficiencyKwhPer100Km: number;
   healthScore: number;
   driveMode: DriveMode;
+  scenario: ScenarioCommand;
   alerts: TelemetryAlert[];
   stateOfCharge: "charging" | "driving" | "parked";
   location: {
@@ -177,6 +178,7 @@ function nextVehicleTelemetry(state: VehicleState, index: number): VehicleTeleme
     efficiencyKwhPer100Km: Number(efficiencyKwhPer100Km.toFixed(1)),
     healthScore,
     driveMode: state.driveMode,
+    scenario: state.forcedScenario ?? "normal",
     alerts,
     stateOfCharge,
     location: {

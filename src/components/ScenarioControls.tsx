@@ -10,16 +10,18 @@ const scenarios: Array<{ label: string; value: ScenarioCommand }> = [
 
 export function ScenarioControls({
   selectedVehicle,
+  status,
   onApply
 }: {
   selectedVehicle: VehicleTelemetry;
+  status?: string;
   onApply: (scenario: ScenarioCommand) => void;
 }) {
   return (
     <article className="insight-panel">
       <div className="panel-heading">
         <h3>Scenario controls</h3>
-        <span>{selectedVehicle.vehicleId}</span>
+        <span>{selectedVehicle.scenario ?? "normal"}</span>
       </div>
       <div className="scenario-buttons">
         {scenarios.map((scenario) => (
@@ -28,6 +30,7 @@ export function ScenarioControls({
           </button>
         ))}
       </div>
+      {status ? <p className="scenario-status">{status}</p> : null}
     </article>
   );
 }
