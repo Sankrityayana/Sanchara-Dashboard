@@ -10,7 +10,7 @@ import { ScenarioControls } from "./components/ScenarioControls";
 import { TrendChart } from "./components/TrendChart";
 import { VehicleList } from "./components/VehicleList";
 import { fetchVehicleHistory } from "./lib/api";
-import type { ScenarioCommand, TelemetryMessage, VehicleTelemetry } from "./types";
+import type { ScenarioCommand, TelemetryAlert, TelemetryMessage, VehicleTelemetry } from "./types";
 import "./styles.css";
 
 const wsUrl = import.meta.env.VITE_WS_URL ?? "ws://localhost:8080";
@@ -33,6 +33,7 @@ function App() {
   const [lastMessageAt, setLastMessageAt] = React.useState<number>();
   const [now, setNow] = React.useState(Date.now());
   const socketRef = React.useRef<WebSocket | null>(null);
+  const commandTimeoutRef = React.useRef<number | undefined>(undefined);
 
   React.useEffect(() => {
     let connectTimer: number | undefined;
@@ -74,8 +75,13 @@ function App() {
         setLastMessageAt(Date.now());
 
         if (data.type === "command-result") {
+          window.clearTimeout(commandTimeoutRef.current);
           if (data.command === "scenario") {
-            setScenarioStatus(data.ok ? `${data.vehicleId} scenario set to ${data.scenario}.` : (data.message ?? "Scenario failed."));
+            setScenarioStatus(
+              data.ok
+                ? `${data.vehicleId} scenario set to ${data.scenario}. Live stream will keep updating it.`
+                : (data.message ?? "Scenario failed.")
+            );
           }
           return;
         }
@@ -114,6 +120,7 @@ function App() {
 
     return () => {
       disposed = true;
+      window.clearTimeout(commandTimeoutRef.current);
       window.clearTimeout(connectTimer);
       window.clearTimeout(reconnectTimer);
       if (socket && socket.readyState === WebSocket.OPEN) {
@@ -179,8 +186,36 @@ function App() {
       return;
     }
 
-    setScenarioStatus(`Applying ${scenario} to ${vehicleId}...`);
+    applyOptimisticScenario(selectedVehicle, scenario);
+    setScenarioStatus(`Applied ${scenario} locally. Waiting for stream confirmation...`);
     socketRef.current.send(JSON.stringify({ type: "scenario", vehicleId, scenario }));
+    window.clearTimeout(commandTimeoutRef.current);
+    commandTimeoutRef.current = window.setTimeout(() => {
+      setScenarioStatus(
+        "No server acknowledgement yet. Restart the backend so it picks up the latest WebSocket command handler."
+      );
+    }, 2500);
+  };
+
+  const applyOptimisticScenario = (vehicle: VehicleTelemetry, scenario: ScenarioCommand) => {
+    if (scenario === "offline") {
+      setVehicles((current) => {
+        const next = { ...current };
+        delete next[vehicle.vehicleId];
+        return next;
+      });
+      return;
+    }
+
+    const nextVehicle = buildScenarioPreview(vehicle, scenario);
+    setVehicles((current) => ({
+      ...current,
+      [vehicle.vehicleId]: nextVehicle
+    }));
+    setHistory((current) => ({
+      ...current,
+      [vehicle.vehicleId]: [...(current[vehicle.vehicleId] ?? []), nextVehicle].slice(-maxHistoryPoints)
+    }));
   };
 
   return (
@@ -369,5 +404,71 @@ function normalizeVehicle(vehicle: VehicleTelemetry): VehicleTelemetry {
     driveMode: vehicle.driveMode ?? "city",
     scenario: vehicle.scenario ?? "normal",
     alerts: vehicle.alerts ?? []
+  };
+}
+
+function buildScenarioPreview(vehicle: VehicleTelemetry, scenario: ScenarioCommand): VehicleTelemetry {
+  const base = {
+    ...vehicle,
+    scenario,
+    timestamp: new Date().toISOString()
+  };
+
+  if (scenario === "normal") {
+    return {
+      ...base,
+      alerts: []
+    };
+  }
+
+  if (scenario === "low-battery") {
+    return {
+      ...base,
+      batteryPct: 15,
+      rangeKm: 73.5,
+      healthScore: Math.min(base.healthScore, 58),
+      alerts: [createPreviewAlert(vehicle.vehicleId, "LOW_BATTERY", "critical", "Battery below 18%")]
+    };
+  }
+
+  if (scenario === "overheat") {
+    return {
+      ...base,
+      motorTempC: 91,
+      batteryTempC: Math.max(base.batteryTempC, 47),
+      healthScore: Math.min(base.healthScore, 52),
+      alerts: [
+        createPreviewAlert(vehicle.vehicleId, "MOTOR_TEMP_CRITICAL", "critical", "Motor temperature critical"),
+        createPreviewAlert(vehicle.vehicleId, "BATTERY_TEMP_WATCH", "warning", "Battery temperature elevated")
+      ]
+    };
+  }
+
+  if (scenario === "charging") {
+    return {
+      ...base,
+      speedKph: 0,
+      powerKw: -72,
+      driveMode: "charging",
+      stateOfCharge: "charging",
+      alerts: []
+    };
+  }
+
+  return base;
+}
+
+function createPreviewAlert(
+  vehicleId: string,
+  code: string,
+  severity: TelemetryAlert["severity"],
+  message: string
+): TelemetryAlert {
+  return {
+    id: `${vehicleId}:${code}`,
+    code,
+    severity,
+    message,
+    status: "active"
   };
 }
