@@ -18,6 +18,7 @@ This folder contains the full project documentation for Sanchar Dashboard.
 12. [Troubleshooting](TROUBLESHOOTING.md)
 13. [Portfolio Notes](PORTFOLIO.md)
 14. [Betterment Ideas](BETTERMENT_IDEAS.md)
+15. [Screenshot Gallery](SCREENSHOTS.md)
 
 ## What This Project Demonstrates
 

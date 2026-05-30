@@ -22,6 +22,12 @@ Sanchar Dashboard is designed as a portfolio project for vehicle software, energ
 
 React, TypeScript, Vite, Node.js, WebSockets, InfluxDB, Docker, GitHub Actions.
 
+## Preview
+
+![Sanchar Dashboard live vehicle telemetry](screenshots/01-main-dashboard.png)
+
+More portfolio-ready 16:9 screenshots are available in [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md).
+
 ## Run Locally
 
 ```bash
@@ -124,6 +130,7 @@ The WebSocket/API integration test runs in CI and is skipped on the local Window
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Portfolio Notes](docs/PORTFOLIO.md)
 - [Betterment Ideas](docs/BETTERMENT_IDEAS.md)
+- [Screenshot Gallery](docs/SCREENSHOTS.md)
 
 ## Deployment Summary
 
