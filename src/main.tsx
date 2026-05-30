@@ -40,11 +40,17 @@ function App() {
   const [now, setNow] = React.useState(Date.now());
 
   React.useEffect(() => {
+    let connectTimer: number | undefined;
     let reconnectTimer: number | undefined;
     let socket: WebSocket | undefined;
     let attempts = 0;
+    let disposed = false;
 
     const connect = () => {
+      if (disposed) {
+        return;
+      }
+
       setConnectionState("connecting");
       socket = new WebSocket(wsUrl);
 
@@ -60,7 +66,9 @@ function App() {
         reconnectTimer = window.setTimeout(connect, Math.min(30000, 1000 * 2 ** attempts));
       });
       socket.addEventListener("error", () => {
-        socket?.close();
+        if (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) {
+          socket.close();
+        }
       });
       socket.addEventListener("message", (event) => {
         const data = JSON.parse(event.data) as TelemetryMessage;
@@ -96,11 +104,13 @@ function App() {
       });
     };
 
-    connect();
+    connectTimer = window.setTimeout(connect, 100);
 
     return () => {
+      disposed = true;
+      window.clearTimeout(connectTimer);
       window.clearTimeout(reconnectTimer);
-      if (socket && socket.readyState !== WebSocket.CLOSED) {
+      if (socket && socket.readyState === WebSocket.OPEN) {
         socket.close();
       }
     };
@@ -112,13 +122,17 @@ function App() {
   }, []);
 
   React.useEffect(() => {
+    if (connectionState !== "live" && !lastMessageAt) {
+      return;
+    }
+
     const interval = window.setInterval(() => {
       fetchFleetSummary().then(setFleetSummary).catch(() => undefined);
     }, 5000);
 
     fetchFleetSummary().then(setFleetSummary).catch(() => undefined);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [connectionState, lastMessageAt]);
 
   const vehicleList = Object.values(vehicles).sort((a, b) => a.vehicleId.localeCompare(b.vehicleId));
   const selectedVehicle = selectedVehicleId ? vehicles[selectedVehicleId] : vehicleList[0];
@@ -136,7 +150,7 @@ function App() {
   const effectiveConnectionState = isStale ? "offline" : connectionState;
 
   React.useEffect(() => {
-    if (!selectedVehicle || historyRange === "live") {
+    if (!selectedVehicle || historyRange === "live" || connectionState !== "live") {
       setApiHistory([]);
       return;
     }
@@ -144,7 +158,7 @@ function App() {
     fetchVehicleHistory(selectedVehicle.vehicleId, historyRange)
       .then(setApiHistory)
       .catch(() => setApiHistory([]));
-  }, [selectedVehicle?.vehicleId, historyRange]);
+  }, [selectedVehicle?.vehicleId, historyRange, connectionState]);
 
   const handleAlertAction = (action: "acknowledge" | "resolve", alertId: string) => {
     const request = action === "acknowledge" ? acknowledgeAlert(alertId) : resolveAlert(alertId);
