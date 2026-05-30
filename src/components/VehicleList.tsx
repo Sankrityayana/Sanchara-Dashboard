@@ -1,15 +1,17 @@
-import type { VehicleTelemetry } from "../types";
+import type { TrackedVehicle } from "../types";
 import { healthClass } from "../lib/math";
 
 export function VehicleList({
-  vehicles,
+  trackedVehicles,
   selectedVehicleId,
   lastUpdated,
+  now,
   onSelect
 }: {
-  vehicles: VehicleTelemetry[];
+  trackedVehicles: TrackedVehicle[];
   selectedVehicleId?: string;
   lastUpdated?: string;
+  now: number;
   onSelect: (vehicleId: string) => void;
 }) {
   return (
@@ -18,9 +20,18 @@ export function VehicleList({
         <h2>Vehicles</h2>
         <span>{lastUpdated ? `Updated ${lastUpdated}` : "Waiting for stream"}</span>
       </div>
-      {vehicles.map((vehicle) => (
+      <div className="vehicle-list-summary">
+        <span>{trackedVehicles.filter((track) => track.online).length} online</span>
+        <span>{trackedVehicles.filter((track) => !track.online).length} offline</span>
+      </div>
+      {trackedVehicles.map((track) => {
+        const vehicle = track.vehicle;
+        const secondsSinceSeen = Math.max(0, Math.floor((now - track.lastSeenAt) / 1000));
+        return (
         <button
-          className={`vehicle-row ${vehicle.vehicleId === selectedVehicleId ? "selected" : ""}`}
+          className={`vehicle-row ${vehicle.vehicleId === selectedVehicleId ? "selected" : ""} ${
+            track.online ? "online" : "offline"
+          }`}
           key={vehicle.vehicleId}
           onClick={() => onSelect(vehicle.vehicleId)}
           type="button"
@@ -28,15 +39,20 @@ export function VehicleList({
           <span>
             <strong>{vehicle.vehicleId}</strong>
             <small>
-              {vehicle.driveMode} / {vehicle.stateOfCharge}
+              {track.online ? "online" : `offline ${secondsSinceSeen}s`} / {vehicle.scenario}
+            </small>
+            <small>
+              {vehicle.driveMode} / {vehicle.stateOfCharge} / {track.sampleCount} samples
             </small>
           </span>
           <span className="vehicle-meta">
             <strong>{vehicle.speedKph.toFixed(0)} kph</strong>
-            <small className={healthClass(vehicle.healthScore)}>{vehicle.healthScore}/100</small>
+            <small>{vehicle.batteryPct.toFixed(0)}% battery</small>
+            <small className={healthClass(vehicle.healthScore)}>{vehicle.healthScore}/100 health</small>
           </span>
         </button>
-      ))}
+        );
+      })}
     </aside>
   );
 }

@@ -44,6 +44,13 @@ export type VehicleTelemetry = {
   };
 };
 
+export type TrackedVehicle = {
+  vehicle: VehicleTelemetry;
+  online: boolean;
+  lastSeenAt: number;
+  sampleCount: number;
+};
+
 export type TelemetryMessage =
   | {
       type: "hello";

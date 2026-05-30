@@ -194,9 +194,42 @@ h3 {
   text-align: left;
 }
 
+.vehicle-list-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.vehicle-list-summary span {
+  min-height: 34px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
 .vehicle-row.selected {
   border-color: #14b8a6;
   background: #ecfeff;
+}
+
+.vehicle-row.online {
+  border-left: 4px solid #14b8a6;
+}
+
+.vehicle-row.offline {
+  border-left: 4px solid #94a3b8;
+  background: #f1f5f9;
+}
+
+.vehicle-row.offline .vehicle-meta strong,
+.vehicle-row.offline > span:first-child strong {
+  color: #64748b;
 }
 
 .vehicle-row strong,
@@ -312,11 +345,16 @@ dd {
   gap: 5px;
   justify-items: end;
   flex: 0 0 auto;
+  min-width: 92px;
 }
 
 .vehicle-meta strong {
   color: #0f766e;
   font-weight: 900;
+}
+
+.vehicle-meta small {
+  text-align: right;
 }
 
 .vehicle-meta small,
@@ -531,6 +569,10 @@ select {
 
   .compare-row {
     grid-template-columns: 1fr;
+  }
+
+  .vehicle-row {
+    align-items: flex-start;
   }
 
   .alert-row {

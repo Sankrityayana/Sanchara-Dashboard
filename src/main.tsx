@@ -10,7 +10,13 @@ import { ScenarioControls } from "./components/ScenarioControls";
 import { TrendChart } from "./components/TrendChart";
 import { VehicleList } from "./components/VehicleList";
 import { fetchVehicleHistory } from "./lib/api";
-import type { ScenarioCommand, TelemetryAlert, TelemetryMessage, VehicleTelemetry } from "./types";
+import type {
+  ScenarioCommand,
+  TelemetryAlert,
+  TelemetryMessage,
+  TrackedVehicle,
+  VehicleTelemetry
+} from "./types";
 import "./styles.css";
 
 const wsUrl = import.meta.env.VITE_WS_URL ?? "ws://localhost:8080";
@@ -19,6 +25,7 @@ const staleAfterMs = 7000;
 
 function App() {
   const [vehicles, setVehicles] = React.useState<Record<string, VehicleTelemetry>>({});
+  const [trackedVehicles, setTrackedVehicles] = React.useState<Record<string, TrackedVehicle>>({});
   const [history, setHistory] = React.useState<Record<string, VehicleTelemetry[]>>({});
   const [apiHistory, setApiHistory] = React.useState<VehicleTelemetry[]>([]);
   const [historyRange, setHistoryRange] = React.useState("live");
@@ -91,11 +98,32 @@ function App() {
         }
 
         const vehicles = data.vehicles.map(normalizeVehicle);
+        const seenAt = Date.now();
 
         setVehicles(() => {
           const next: Record<string, VehicleTelemetry> = {};
           for (const vehicle of vehicles) {
             next[vehicle.vehicleId] = vehicle;
+          }
+          return next;
+        });
+
+        setTrackedVehicles((current) => {
+          const next: Record<string, TrackedVehicle> = {};
+          for (const [vehicleId, track] of Object.entries(current)) {
+            next[vehicleId] = {
+              ...track,
+              online: false
+            };
+          }
+          for (const vehicle of vehicles) {
+            const existing = current[vehicle.vehicleId];
+            next[vehicle.vehicleId] = {
+              vehicle,
+              online: true,
+              lastSeenAt: seenAt,
+              sampleCount: (existing?.sampleCount ?? 0) + 1
+            };
           }
           return next;
         });
@@ -135,7 +163,15 @@ function App() {
   }, []);
 
   const vehicleList = Object.values(vehicles).sort((a, b) => a.vehicleId.localeCompare(b.vehicleId));
-  const selectedVehicle = selectedVehicleId ? vehicles[selectedVehicleId] : vehicleList[0];
+  const trackedVehicleList = Object.values(trackedVehicles).sort((a, b) => {
+    if (a.online !== b.online) {
+      return a.online ? -1 : 1;
+    }
+    return a.vehicle.vehicleId.localeCompare(b.vehicle.vehicleId);
+  });
+  const selectedVehicle = selectedVehicleId
+    ? vehicles[selectedVehicleId] ?? trackedVehicles[selectedVehicleId]?.vehicle
+    : trackedVehicleList[0]?.vehicle ?? vehicleList[0];
   const compareVehicle =
     compareVehicleId && compareVehicleId !== selectedVehicle?.vehicleId
       ? vehicles[compareVehicleId]
@@ -150,10 +186,10 @@ function App() {
   const effectiveConnectionState = isStale ? "offline" : connectionState;
 
   React.useEffect(() => {
-    if (vehicleList.length && selectedVehicleId && !vehicles[selectedVehicleId]) {
-      setSelectedVehicleId(vehicleList[0].vehicleId);
+    if (trackedVehicleList.length && selectedVehicleId && !trackedVehicles[selectedVehicleId]) {
+      setSelectedVehicleId(trackedVehicleList[0].vehicle.vehicleId);
     }
-  }, [selectedVehicleId, vehicleList, vehicles]);
+  }, [selectedVehicleId, trackedVehicleList, trackedVehicles]);
 
   React.useEffect(() => {
     if (!selectedVehicle || historyRange === "live" || connectionState !== "live") {
@@ -204,6 +240,15 @@ function App() {
         delete next[vehicle.vehicleId];
         return next;
       });
+      setTrackedVehicles((current) => ({
+        ...current,
+        [vehicle.vehicleId]: {
+          vehicle: buildScenarioPreview(vehicle, scenario),
+          online: false,
+          lastSeenAt: Date.now(),
+          sampleCount: current[vehicle.vehicleId]?.sampleCount ?? 0
+        }
+      }));
       return;
     }
 
@@ -211,6 +256,15 @@ function App() {
     setVehicles((current) => ({
       ...current,
       [vehicle.vehicleId]: nextVehicle
+    }));
+    setTrackedVehicles((current) => ({
+      ...current,
+      [vehicle.vehicleId]: {
+        vehicle: nextVehicle,
+        online: true,
+        lastSeenAt: Date.now(),
+        sampleCount: current[vehicle.vehicleId]?.sampleCount ?? 0
+      }
     }));
     setHistory((current) => ({
       ...current,
@@ -242,9 +296,10 @@ function App() {
       <section className="dashboard-grid">
         <div className="sidebar-stack">
           <VehicleList
-            vehicles={vehicleList}
+            trackedVehicles={trackedVehicleList}
             selectedVehicleId={selectedVehicle?.vehicleId}
             lastUpdated={lastUpdated}
+            now={now}
             onSelect={setSelectedVehicleId}
           />
           {selectedVehicle ? (
