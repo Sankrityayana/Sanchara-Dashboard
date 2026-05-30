@@ -25,7 +25,12 @@ export function ScenarioControls({
       </div>
       <div className="scenario-buttons">
         {scenarios.map((scenario) => (
-          <button key={scenario.value} type="button" onClick={() => onApply(scenario.value)}>
+          <button
+            className={selectedVehicle.scenario === scenario.value ? "active" : ""}
+            key={scenario.value}
+            type="button"
+            onClick={() => onApply(scenario.value)}
+          >
             {scenario.label}
           </button>
         ))}

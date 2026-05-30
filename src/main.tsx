@@ -30,6 +30,7 @@ function App() {
   const [apiHistory, setApiHistory] = React.useState<VehicleTelemetry[]>([]);
   const [historyRange, setHistoryRange] = React.useState("live");
   const [scenarioStatus, setScenarioStatus] = React.useState<string>();
+  const [scenarioOverrides, setScenarioOverrides] = React.useState<Record<string, ScenarioCommand>>({});
   const [selectedVehicleId, setSelectedVehicleId] = React.useState<string>();
   const [compareVehicleId, setCompareVehicleId] = React.useState<string>();
   const [connectionState, setConnectionState] = React.useState<"connecting" | "live" | "offline">(
@@ -41,6 +42,7 @@ function App() {
   const [now, setNow] = React.useState(Date.now());
   const socketRef = React.useRef<WebSocket | null>(null);
   const commandTimeoutRef = React.useRef<number | undefined>(undefined);
+  const scenarioOverridesRef = React.useRef<Record<string, ScenarioCommand>>({});
 
   React.useEffect(() => {
     let connectTimer: number | undefined;
@@ -97,7 +99,11 @@ function App() {
           return;
         }
 
-        const vehicles = data.vehicles.map(normalizeVehicle).map(enrichVehicleLocally);
+        const vehicles = data.vehicles
+          .map(normalizeVehicle)
+          .map((vehicle) => applyScenarioOverride(vehicle, scenarioOverridesRef.current[vehicle.vehicleId]))
+          .filter((vehicle) => vehicle.scenario !== "offline")
+          .map(enrichVehicleLocally);
         const seenAt = Date.now();
 
         setVehicles(() => {
@@ -217,18 +223,27 @@ function App() {
     }
 
     const vehicleId = selectedVehicle.vehicleId;
-    if (socketRef.current?.readyState !== WebSocket.OPEN) {
-      setScenarioStatus("Telemetry stream is offline. Start the backend with npm run dev.");
-      return;
-    }
-
+    setScenarioOverrides((current) => {
+      const next = { ...current };
+      if (scenario === "normal") {
+        delete next[vehicleId];
+      } else {
+        next[vehicleId] = scenario;
+      }
+      scenarioOverridesRef.current = next;
+      return next;
+    });
     applyOptimisticScenario(selectedVehicle, scenario);
     setScenarioStatus(
       scenario === "offline"
-        ? `${vehicleId} marked offline locally. Live stream will confirm when the backend restarts with latest code.`
-        : `${vehicleId} now showing ${scenario} locally. Live stream will continue updating it.`
+        ? `${vehicleId} marked offline locally. Click Normal to bring it back.`
+        : scenario === "normal"
+          ? `${vehicleId} returned to normal local tracking.`
+          : `${vehicleId} now showing ${scenario}. Click Normal to clear this scenario.`
     );
-    socketRef.current.send(JSON.stringify({ type: "scenario", vehicleId, scenario }));
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: "scenario", vehicleId, scenario }));
+    }
     window.clearTimeout(commandTimeoutRef.current);
   };
 
@@ -465,6 +480,17 @@ function normalizeVehicle(vehicle: VehicleTelemetry): VehicleTelemetry {
   };
 }
 
+function applyScenarioOverride(
+  vehicle: VehicleTelemetry,
+  scenario: ScenarioCommand | undefined
+): VehicleTelemetry {
+  if (!scenario) {
+    return vehicle;
+  }
+
+  return buildScenarioPreview(vehicle, scenario);
+}
+
 function enrichVehicleLocally(vehicle: VehicleTelemetry): VehicleTelemetry {
   const alerts = [...(vehicle.alerts ?? [])];
   if (vehicle.batteryPct <= 18 && vehicle.stateOfCharge !== "charging" && !alerts.some((alert) => alert.code === "LOW_BATTERY")) {
@@ -494,6 +520,16 @@ function buildScenarioPreview(vehicle: VehicleTelemetry, scenario: ScenarioComma
   if (scenario === "normal") {
     return {
       ...base,
+      speedKph: Math.max(base.speedKph, 42),
+      batteryPct: Math.max(base.batteryPct, 65),
+      batteryTempC: 31,
+      motorTempC: 45,
+      rangeKm: Math.max(base.rangeKm, 310),
+      powerKw: 22,
+      efficiencyKwhPer100Km: 18,
+      healthScore: 95,
+      driveMode: "city",
+      stateOfCharge: "driving",
       alerts: []
     };
   }

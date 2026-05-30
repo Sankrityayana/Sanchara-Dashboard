@@ -448,6 +448,12 @@ dd {
   min-height: 40px;
 }
 
+.scenario-buttons button.active {
+  border-color: #14b8a6;
+  background: #ecfeff;
+  color: #0f766e;
+}
+
 .scenario-status {
   margin-top: 12px;
   color: #475569;
