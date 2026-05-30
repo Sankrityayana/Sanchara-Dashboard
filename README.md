@@ -109,10 +109,19 @@ The WebSocket/API integration test runs in CI and is skipped on the local Window
 
 ## Documentation
 
+- [Documentation Index](docs/README.md)
+- [Project Overview](docs/PROJECT_OVERVIEW.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Telemetry Data Model](docs/DATA_MODEL.md)
+- [Scenario Controls](docs/SCENARIO_CONTROLS.md)
+- [Frontend Guide](docs/FRONTEND.md)
+- [Backend Guide](docs/BACKEND.md)
 - [API Reference](docs/API.md)
+- [InfluxDB Guide](docs/INFLUXDB.md)
 - [Demo Guide](docs/DEMO.md)
+- [Testing Guide](docs/TESTING.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Portfolio Notes](docs/PORTFOLIO.md)
 - [Betterment Ideas](docs/BETTERMENT_IDEAS.md)
 

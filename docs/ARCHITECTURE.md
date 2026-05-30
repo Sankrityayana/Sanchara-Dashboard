@@ -1,55 +1,103 @@
-# Sanchar Dashboard Architecture
+# Architecture
 
-Sanchar Dashboard is a real-time EV telemetry demo with a React dashboard, Node.js telemetry service, WebSocket stream, optional REST API, and optional InfluxDB persistence.
+Sanchar Dashboard is split into a React frontend and a Node.js backend. The backend owns telemetry generation, WebSocket streaming, optional REST APIs, and optional InfluxDB persistence. The frontend owns live visualization, local tracking, scenario UI, and user interaction.
 
-## System Flow
+## High-Level Diagram
 
 ```mermaid
 flowchart LR
-  Simulator["Vehicle simulator\n3 coherent mock EVs"] --> Server["Node.js telemetry service"]
-  Server -->|"WebSocket telemetry\n1 update/sec"| Client["React dashboard"]
-  Client -->|"WebSocket commands"| Server
-  Server -->|"Optional writes"| Influx["InfluxDB\nvehicle_telemetry bucket"]
-  Client -->|"Optional history/API reads"| API["REST API"]
-  API --> Server
-  Server -->|"Optional history query"| Influx
+  Simulator["Stateful Vehicle Simulator"] --> Backend["Node.js Telemetry Service"]
+  Backend -->|"WebSocket telemetry every second"| Frontend["React Dashboard"]
+  Frontend -->|"WebSocket scenario and alert commands"| Backend
+  Backend -->|"Optional write/query"| Influx["InfluxDB"]
+  Backend --> REST["REST API"]
+  REST --> Frontend
 ```
 
-## Main Parts
+## Runtime Components
 
-- `server/telemetry.ts`: stateful vehicle simulator, scenario logic, health score, alerts, and coherent metric derivation.
-- `server/index.ts`: WebSocket server, REST API, command handling, heartbeat, in-memory history, metrics, and shutdown flow.
-- `server/influx.ts`: optional InfluxDB writer and history query adapter.
-- `src/main.tsx`: dashboard state orchestration, WebSocket lifecycle, local tracking, scenario override handling.
-- `src/components/*`: focused dashboard panels for fleet summary, vehicles, scenarios, alerts, charts, comparison, and map.
+### Frontend
 
-## Data Model
+Location:
 
-Each vehicle telemetry sample includes:
+```text
+src/
+```
 
-- identity: `vehicleId`, `timestamp`
-- movement: `speedKph`, `location`, `odometerKm`
-- energy: `batteryPct`, `rangeKm`, `powerKw`, `efficiencyKwhPer100Km`
-- thermal: `batteryTempC`, `motorTempC`, `cabinTempC`
-- state: `driveMode`, `stateOfCharge`, `scenario`
-- diagnostics: `healthScore`, `alerts`
+Responsibilities:
 
-## Scenario Model
+- connect to WebSocket telemetry stream
+- render fleet summary
+- track vehicle online/offline state locally
+- show charts, alerts, map, and comparison
+- apply scenario controls immediately in UI
+- send scenario/alert commands to backend
 
-Scenario controls are deterministic and locally resilient:
+### Backend
 
-- `normal`: restores healthy values and clears alerts
-- `low-battery`: low battery, low range, degraded health, low-battery alert
-- `overheat`: high motor/battery temperatures, degraded health, thermal alerts
-- `charging`: zero speed, negative power, charging state
-- `offline`: removes the vehicle from live telemetry while local tracking marks it offline
+Location:
 
-The browser applies a local scenario override immediately, then sends a WebSocket command to the backend. This keeps the demo responsive even if the backend is stale or slow to acknowledge.
+```text
+server/
+```
 
-## Why WebSockets
+Responsibilities:
 
-Telemetry is pushed continuously from backend to frontend. A normal REST polling loop would add delay and unnecessary request overhead. WebSockets keep one persistent connection open and let the backend push each new sample as soon as it is generated.
+- generate coherent telemetry for three mock EVs
+- stream telemetry over WebSockets
+- accept WebSocket commands
+- expose REST APIs
+- calculate health score and alerts
+- store short in-memory history
+- optionally write/query InfluxDB
 
-## Why InfluxDB
+### Optional InfluxDB
 
-InfluxDB is optimized for time-series data. Vehicle telemetry is naturally time-series data because every sample is tied to a timestamp and needs historical queries such as last 5 minutes, 30 minutes, or 1 hour.
+InfluxDB is used for time-series persistence. The app runs without it, but when configured it can write telemetry samples and query history ranges.
+
+## Data Flow
+
+1. Backend updates each vehicle state once per second.
+2. Backend derives telemetry values from the vehicle state.
+3. Backend sends a WebSocket `telemetry` message to connected clients.
+4. Frontend normalizes and enriches the incoming vehicles.
+5. Frontend updates local tracking and chart history.
+6. User clicks scenario control.
+7. Frontend applies local scenario override immediately.
+8. Frontend sends scenario command over WebSocket.
+9. Backend applies scenario to simulator state.
+10. Future telemetry ticks continue from that scenario state.
+
+## Why This Architecture
+
+WebSockets are used because telemetry is push-based. The backend should push new samples when they exist instead of the frontend repeatedly polling.
+
+React local state is used for browser-side tracking because demo interaction must stay responsive even if backend acknowledgement is delayed.
+
+InfluxDB is optional because the MVP should work without external infrastructure.
+
+## Important Files
+
+```text
+server/index.ts          WebSocket server, REST API, metrics, command handling
+server/telemetry.ts      Vehicle simulator, scenarios, health, alerts
+server/influx.ts         Optional InfluxDB adapter
+src/main.tsx             Frontend orchestration and WebSocket lifecycle
+src/components/          Dashboard UI panels
+src/lib/api.ts           REST API client
+src/lib/math.ts          Small math/display helpers
+tests/                   Simulator and integration tests
+```
+
+## Local Ports
+
+```text
+Frontend: 5173
+WebSocket: 8080
+REST API: 8090
+InfluxDB: 8086
+```
+
+## Production Note
+
+The local backend currently uses separate ports for WebSocket and REST. Many cloud hosts expose a single public port. Before production deployment, the backend should be updated to attach WebSocket and REST handling to one HTTP server.
