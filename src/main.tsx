@@ -175,9 +175,9 @@ function App() {
     }
     return a.vehicle.vehicleId.localeCompare(b.vehicle.vehicleId);
   });
-  const selectedVehicle = selectedVehicleId
-    ? vehicles[selectedVehicleId] ?? trackedVehicles[selectedVehicleId]?.vehicle
-    : trackedVehicleList[0]?.vehicle ?? vehicleList[0];
+  const selectedTrack = selectedVehicleId ? trackedVehicles[selectedVehicleId] : trackedVehicleList[0];
+  const selectedVehicle = selectedTrack?.vehicle ?? (selectedVehicleId ? vehicles[selectedVehicleId] : vehicleList[0]);
+  const selectedVehicleStatus = selectedTrack && !selectedTrack.online ? "offline" : selectedVehicle?.stateOfCharge;
   const compareVehicle =
     compareVehicleId && compareVehicleId !== selectedVehicle?.vehicleId
       ? vehicles[compareVehicleId]
@@ -329,8 +329,8 @@ function App() {
                   <p className="eyebrow">Selected vehicle</p>
                   <h2>{selectedVehicle.vehicleId}</h2>
                 </div>
-                <span className={`state-badge ${selectedVehicle.stateOfCharge}`}>
-                  {selectedVehicle.stateOfCharge}
+                <span className={`state-badge ${selectedVehicleStatus}`}>
+                  {selectedVehicleStatus}
                 </span>
               </div>
 
