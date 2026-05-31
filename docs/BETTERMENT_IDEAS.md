@@ -1,10 +1,10 @@
 # Betterment Ideas
 
-1. **Single-port production backend**
-   - Serve REST and WebSocket traffic from the same HTTP server for easier Render/Railway/Fly deployment.
+1. **Demo video**
+   - Add a 30-45 second walkthrough showing live telemetry, scenario controls, alerts, and offline tracking.
 
-2. **README screenshots and GIF**
-   - Add dashboard screenshots and a short scenario-control GIF so recruiters can understand the project without running it.
+2. **Scenario-control GIF**
+   - Add a short animated GIF so recruiters can understand the interaction without running the app.
 
 3. **Real InfluxDB history charts**
    - Use InfluxDB for chart ranges by default when configured, with clear UI state for memory vs persisted history.
@@ -27,5 +27,5 @@
 9. **Playwright visual smoke test**
    - Add a browser test that confirms dashboard render, scenario buttons, and alert display.
 
-10. **Production deployment**
-   - Deploy frontend to Vercel and backend to Render/Railway/Fly, then add live links to the README and portfolio.
+10. **Deployment observability**
+   - Add backend uptime, WebSocket client count, and telemetry throughput cards to the dashboard.

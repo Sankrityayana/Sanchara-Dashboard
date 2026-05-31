@@ -6,6 +6,8 @@ Recommended deployment split:
 - Backend WebSocket/API service: Render, Railway, Fly.io, or another Node host that supports WebSockets
 - Database: InfluxDB Cloud or self-hosted InfluxDB
 
+See [Deployment Status](DEPLOYMENT_STATUS.md) for the current production checklist.
+
 ## 1. Deploy Backend
 
 The backend must run as a long-lived Node service because it owns the WebSocket server.

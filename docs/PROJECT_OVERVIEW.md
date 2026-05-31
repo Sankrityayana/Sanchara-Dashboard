@@ -12,6 +12,7 @@ The goal is to show understanding of real-time systems used in vehicle, energy, 
 - diagnostics and alerting
 - time-series persistence
 - deployable full-stack architecture
+- cloud-ready single-port backend architecture
 
 ## Target Roles
 
@@ -43,7 +44,7 @@ A user opens the dashboard and sees three EVs streaming live data. The user can 
 
 ## Current Scope
 
-This is an MVP plus hardening project. It is suitable for portfolio use and technical discussion. It is not connected to real vehicle hardware or CAN bus data.
+This is a deployed portfolio project with MVP functionality plus hardening. It is suitable for portfolio use, resume discussion, and technical interviews. It is not connected to real vehicle hardware or CAN bus data.
 
 ## Non-Goals
 
@@ -52,6 +53,5 @@ The project does not currently implement:
 - real vehicle data ingestion
 - user authentication UI
 - production-grade fleet tenancy
-- full cloud deployment automation
 - map provider integration
 - long-term persistent alert storage

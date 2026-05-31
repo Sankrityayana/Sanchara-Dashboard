@@ -15,10 +15,12 @@ This folder contains the full project documentation for Sanchar Dashboard.
 9. [Demo Guide](DEMO.md)
 10. [Testing Guide](TESTING.md)
 11. [Deployment Guide](DEPLOYMENT.md)
-12. [Troubleshooting](TROUBLESHOOTING.md)
-13. [Portfolio Notes](PORTFOLIO.md)
-14. [Betterment Ideas](BETTERMENT_IDEAS.md)
-15. [Screenshot Gallery](SCREENSHOTS.md)
+12. [Deployment Status](DEPLOYMENT_STATUS.md)
+13. [Troubleshooting](TROUBLESHOOTING.md)
+14. [Portfolio Notes](PORTFOLIO.md)
+15. [Resume Bullets](RESUME.md)
+16. [Betterment Ideas](BETTERMENT_IDEAS.md)
+17. [Screenshot Gallery](SCREENSHOTS.md)
 
 ## What This Project Demonstrates
 
@@ -32,3 +34,4 @@ Sanchar Dashboard demonstrates a practical real-time telemetry pipeline:
 - optional time-series persistence with InfluxDB
 - REST APIs for fleet state and automation
 - Docker, CI, tests, and deployment readiness
+- cloud deployment with Vercel frontend and Render backend

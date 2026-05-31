@@ -10,8 +10,7 @@ server/index.ts
 
 Responsibilities:
 
-- start WebSocket server
-- start REST API server
+- start one HTTP server for REST and WebSocket traffic
 - broadcast telemetry every second
 - handle WebSocket commands
 - store in-memory history
@@ -78,7 +77,7 @@ Client sends:
 
 ## REST API
 
-The REST API is useful for external automation and debugging. The browser demo primarily uses WebSockets.
+The REST API is useful for external automation and debugging. The browser demo primarily uses WebSockets. Both protocols share the same backend port, which keeps Render/Railway/Fly deployment straightforward.
 
 ## Metrics
 

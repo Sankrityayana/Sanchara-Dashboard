@@ -4,6 +4,10 @@ Real-time EV telemetry dashboard that streams coherent mock vehicle data over We
 
 Sanchar Dashboard is designed as a portfolio project for vehicle software, energy software, real-time systems, and telemetry-heavy engineering roles.
 
+## Project Status
+
+Production-ready portfolio build. The backend is cloud-compatible with REST and WebSocket traffic served from one public port, and the frontend is ready for Vercel deployment.
+
 ## Features
 
 - React + TypeScript dashboard with live telemetry cards and charts
@@ -20,7 +24,7 @@ Sanchar Dashboard is designed as a portfolio project for vehicle software, energ
 
 ## Tech Stack
 
-React, TypeScript, Vite, Node.js, WebSockets, InfluxDB, Docker, GitHub Actions.
+React, TypeScript, Vite, Node.js, WebSockets, InfluxDB, Docker, GitHub Actions, Vercel, Render.
 
 ## Preview
 
@@ -127,8 +131,10 @@ The WebSocket/API integration test runs in CI and is skipped on the local Window
 - [Demo Guide](docs/DEMO.md)
 - [Testing Guide](docs/TESTING.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)
+- [Deployment Status](docs/DEPLOYMENT_STATUS.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Portfolio Notes](docs/PORTFOLIO.md)
+- [Resume Bullets](docs/RESUME.md)
 - [Betterment Ideas](docs/BETTERMENT_IDEAS.md)
 - [Screenshot Gallery](docs/SCREENSHOTS.md)
 
