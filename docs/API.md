@@ -7,7 +7,7 @@ The dashboard uses WebSockets for the live demo path. REST APIs are available fo
 Default URL:
 
 ```text
-ws://localhost:8080
+ws://localhost:8090
 ```
 
 Server messages:

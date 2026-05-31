@@ -25,8 +25,7 @@ Start command: npm run server
 Environment variables:
 
 ```text
-WS_PORT=8080
-API_PORT=10000
+PORT=<provided by host>
 INFLUX_URL=<optional>
 INFLUX_TOKEN=<optional>
 INFLUX_ORG=<optional>
@@ -34,7 +33,7 @@ INFLUX_BUCKET=<optional>
 API_TOKEN=<optional>
 ```
 
-Render exposes one public port through the `PORT` environment variable for web services. If your host requires a single public port, update the backend to attach WebSocket handling to the same HTTP server as the REST API before production deployment. The current local architecture intentionally uses separate `8080` and `8090` ports for clarity.
+Render exposes one public port through the `PORT` environment variable for web services. The backend attaches REST and WebSocket handling to the same HTTP server, so both `https://<backend-host>` and `wss://<backend-host>` use the same public service.
 
 Render supports WebSocket services, but the service must stay running as a web service, not a static site.
 
@@ -94,4 +93,9 @@ Source:
 
 ## Production Note
 
-Before a true public production launch, the cleanest backend improvement is to serve REST and WebSocket traffic from one HTTP server and one public port. That avoids platform limitations around exposing multiple ports.
+Use the backend host root for both API and WebSocket URLs:
+
+```text
+VITE_API_URL=https://<backend-host>
+VITE_WS_URL=wss://<backend-host>
+```

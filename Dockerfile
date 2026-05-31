@@ -17,5 +17,5 @@ COPY --from=build /app/src ./src
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/vite.config.ts ./vite.config.ts
 COPY --from=build /app/tsconfig.json ./tsconfig.json
-EXPOSE 8080 8090
+EXPOSE 8090
 CMD ["npm", "run", "server"]

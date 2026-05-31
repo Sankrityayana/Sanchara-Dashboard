@@ -17,11 +17,9 @@ services:
     build: .
     command: npm run server
     ports:
-      - "8080:8080"
       - "8090:8090"
     environment:
-      WS_PORT: 8080
-      API_PORT: 8090
+      PORT: 8090
       INFLUX_URL: http://influxdb:8086
       INFLUX_TOKEN: dev-token
       INFLUX_ORG: sanchar

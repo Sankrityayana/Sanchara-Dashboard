@@ -24,8 +24,8 @@ Local services:
 
 ```text
 Frontend: http://localhost:5173
-WebSocket: ws://localhost:8080
-REST API: http://localhost:8090
+Backend API: http://localhost:8090
+WebSocket: ws://localhost:8090
 ```
 
 ## Demo Script

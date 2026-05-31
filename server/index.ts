@@ -13,8 +13,7 @@ import {
   type VehicleTelemetry
 } from "./telemetry";
 
-const wsPort = Number(process.env.WS_PORT ?? 8080);
-const apiPort = Number(process.env.API_PORT ?? 8090);
+const servicePort = Number(process.env.PORT ?? process.env.API_PORT ?? process.env.WS_PORT ?? 8090);
 const maxHistoryPoints = 600;
 const history = new Map<string, VehicleTelemetry[]>();
 const latest = new Map<string, VehicleTelemetry>();
@@ -26,8 +25,11 @@ const metrics = {
   failedInfluxWrites: 0,
   apiRequests: 0
 };
-const wss = new WebSocketServer({ port: wsPort });
 const writer = new InfluxTelemetryWriter();
+const apiServer = createServer((request, response) => {
+  void handleApiRequest(request, response);
+});
+const wss = new WebSocketServer({ server: apiServer });
 
 wss.on("connection", (socket) => {
   console.info("Dashboard client connected.");
@@ -85,10 +87,6 @@ const heartbeat = setInterval(() => {
     }
   }
 }, 15000);
-
-const apiServer = createServer((request, response) => {
-  void handleApiRequest(request, response);
-});
 
 async function handleApiRequest(
   request: import("node:http").IncomingMessage,
@@ -199,8 +197,8 @@ async function handleApiRequest(
   sendJson(response, { error: "not found" }, 404);
 }
 
-apiServer.listen(apiPort, () => {
-  console.info(`Sanchar telemetry API listening on http://localhost:${apiPort}`);
+apiServer.listen(servicePort, () => {
+  console.info(`Sanchar telemetry API and WebSocket listening on http://localhost:${servicePort}`);
 });
 
 async function shutdown() {
@@ -312,5 +310,3 @@ async function readJsonBody<T>(request: import("node:http").IncomingMessage): Pr
   const raw = Buffer.concat(chunks).toString("utf8");
   return raw ? (JSON.parse(raw) as T) : ({} as T);
 }
-
-console.info(`Sanchar telemetry WebSocket server listening on ws://localhost:${wsPort}`);

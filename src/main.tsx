@@ -19,7 +19,7 @@ import type {
 } from "./types";
 import "./styles.css";
 
-const wsUrl = import.meta.env.VITE_WS_URL ?? "ws://localhost:8080";
+const wsUrl = import.meta.env.VITE_WS_URL ?? "ws://localhost:8090";
 const maxHistoryPoints = 72;
 const staleAfterMs = 7000;
 

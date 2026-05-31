@@ -45,8 +45,8 @@ Local services:
 
 ```text
 Frontend: http://localhost:5173
-WebSocket: ws://localhost:8080
-REST API: http://localhost:8090
+Backend API: http://localhost:8090
+WebSocket: ws://localhost:8090
 ```
 
 ## Scenario Demo
@@ -150,8 +150,7 @@ VITE_API_URL=https://<your-backend-host>
 Backend environment variables:
 
 ```text
-WS_PORT=8080
-API_PORT=10000
+PORT=<provided by host>
 INFLUX_URL=<optional>
 INFLUX_TOKEN=<optional>
 INFLUX_ORG=<optional>

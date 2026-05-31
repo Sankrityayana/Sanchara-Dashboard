@@ -73,7 +73,7 @@ VITE_WS_URL
 Default:
 
 ```text
-ws://localhost:8080
+ws://localhost:8090
 ```
 
 Connection states:

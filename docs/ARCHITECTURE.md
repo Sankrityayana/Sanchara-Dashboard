@@ -93,11 +93,10 @@ tests/                   Simulator and integration tests
 
 ```text
 Frontend: 5173
-WebSocket: 8080
-REST API: 8090
+Backend API and WebSocket: 8090
 InfluxDB: 8086
 ```
 
 ## Production Note
 
-The local backend currently uses separate ports for WebSocket and REST. Many cloud hosts expose a single public port. Before production deployment, the backend should be updated to attach WebSocket and REST handling to one HTTP server.
+The backend attaches REST and WebSocket handling to one HTTP server. This matches cloud hosts such as Render, Railway, and Fly.io that expose one public port per web service.

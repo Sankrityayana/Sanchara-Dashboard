@@ -45,10 +45,10 @@ npm run dev
 
 ## WebSocket Connection Failed
 
-Check that the backend is listening on `8080`.
+Check that the backend is listening on `8090`.
 
 ```bash
-netstat -ano | findstr 8080
+netstat -ano | findstr 8090
 ```
 
 Then restart:
@@ -82,11 +82,10 @@ Fix:
 
 ## Port Already In Use
 
-Another process is using `5173`, `8080`, or `8090`.
+Another process is using `5173` or `8090`.
 
 Stop the old process or change the port with environment variables:
 
 ```text
-WS_PORT=8081
-API_PORT=8091
+PORT=8091
 ```

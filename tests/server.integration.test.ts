@@ -3,8 +3,7 @@ import { spawn } from "node:child_process";
 import test from "node:test";
 import { WebSocket } from "ws";
 
-const wsPort = 19080 + Math.floor(Math.random() * 100);
-const apiPort = wsPort + 1000;
+const servicePort = 19080 + Math.floor(Math.random() * 100);
 
 test(
   "server exposes health, fleet summary, simulator controls, and websocket telemetry",
@@ -13,17 +12,17 @@ test(
   const server = await startServer();
   t.after(() => server.kill());
 
-  const health = await getJson<{ ok: boolean; vehicles: number }>(`http://127.0.0.1:${apiPort}/health`);
+  const health = await getJson<{ ok: boolean; vehicles: number }>(`http://127.0.0.1:${servicePort}/health`);
   assert.equal(health.ok, true);
   assert.ok(health.vehicles > 0);
 
   const summary = await getJson<{ onlineVehicles: number; averageHealthScore: number }>(
-    `http://127.0.0.1:${apiPort}/api/fleet/summary`
+    `http://127.0.0.1:${servicePort}/api/fleet/summary`
   );
   assert.ok(summary.onlineVehicles > 0);
   assert.ok(summary.averageHealthScore >= 0);
 
-  const scenarioResponse = await fetch(`http://127.0.0.1:${apiPort}/api/simulator/scenario`, {
+  const scenarioResponse = await fetch(`http://127.0.0.1:${servicePort}/api/simulator/scenario`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ vehicleId: "SAN-001", scenario: "low-battery" })
@@ -50,7 +49,7 @@ async function startServer() {
 
   for (let attempt = 0; attempt < 30; attempt += 1) {
     try {
-      const health = await getJson<{ vehicles: number }>(`http://127.0.0.1:${apiPort}/health`);
+      const health = await getJson<{ vehicles: number }>(`http://127.0.0.1:${servicePort}/health`);
       if (health.vehicles > 0) {
         return child;
       }
@@ -72,8 +71,7 @@ function testEnv() {
     env[key] = value;
   }
 
-  env.WS_PORT = String(wsPort);
-  env.API_PORT = String(apiPort);
+  env.PORT = String(servicePort);
   return env;
 }
 
@@ -88,7 +86,7 @@ async function getJson<T>(url: string): Promise<T> {
 
 function readTelemetryMessage(): Promise<{ type: string; vehicles: Array<{ vehicleId: string }> }> {
   return new Promise((resolve, reject) => {
-    const socket = new WebSocket(`ws://127.0.0.1:${wsPort}`);
+    const socket = new WebSocket(`ws://127.0.0.1:${servicePort}`);
     const timeout = setTimeout(() => {
       socket.close();
       reject(new Error("timed out waiting for telemetry"));
